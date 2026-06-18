@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useSearchParams, useRouter, usePathname, useParams } from 'next/navigation';
 import { useQueryClient } from '@tanstack/react-query';
 import { useThreads } from '../hooks/useThreads';
 import { useThreadDetails } from '../hooks/useThreadDetails';
@@ -18,9 +18,17 @@ import {
   User, 
   Calendar,
   AlertCircle,
-  Eye,
-  CheckCircle2
+  CheckCircle2,
+  ChevronLeft,
+  ChevronRight,
+  Mail,
+  Tag,
+  Paperclip,
+  Clock,
+  MoreVertical,
+  Reply
 } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 
 interface Thread {
   id: string;
@@ -44,52 +52,49 @@ interface Email {
 
 export function InboxPage() {
   const searchParams = useSearchParams();
+  const router = useRouter();
+  const pathname = usePathname();
+  const params = useParams();
   const categoryFilter = searchParams.get('category');
   const queryClient = useQueryClient();
   
-  const [selectedThreadId, setSelectedThreadId] = useState<string | null>(null);
+  const selectedThreadId = (params.threadId as string) || null;
   
-  // AI draft prompt instructions state
   const [prompt, setPrompt] = useState('');
   const [draft, setDraft] = useState('');
-  
-  // HTML email view toggle state
-  const [activeHtmlViewEmailId, setActiveHtmlViewEmailId] = useState<string | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const limit = 50;
 
-  // 1. Fetch Thread list using React Query
   const { 
-    data: threads = [], 
+    data: threadsResponse, 
     isLoading: loadingThreads, 
-    refetch: refetchThreads 
-  } = useThreads(categoryFilter || undefined);
+  } = useThreads(categoryFilter || undefined, currentPage, limit);
 
-  // 2. Fetch Selected Thread Details using React Query
+  const threads = threadsResponse?.data || [];
+  const totalThreads = threadsResponse?.total || 0;
+
   const { 
     data: details = null, 
     isLoading: loadingDetails,
-    refetch: refetchDetails
   } = useThreadDetails(selectedThreadId);
 
-  // 3. React Query Mutations
   const sendReplyMutation = useSendReplyMutation();
   const draftReplyMutation = useDraftReplyMutation();
 
-  // Dynamic document title update
   useEffect(() => {
     document.title = categoryFilter ? `${categoryFilter} - Auto Mail` : 'Inbox - Auto Mail';
+    setCurrentPage(1);
   }, [categoryFilter]);
 
-  // Set default selection when threads are loaded
   useEffect(() => {
-    if (threads.length > 0 && !selectedThreadId) {
-      setSelectedThreadId(threads[0].id);
+    if (threads.length > 0 && !selectedThreadId && pathname === '/dashboard') {
+      const q = searchParams.toString();
+      router.replace(`/dashboard/${threads[0].id}${q ? `?${q}` : ''}`);
     }
-  }, [threads, selectedThreadId]);
+  }, [threads, selectedThreadId, pathname, router, searchParams]);
 
   useEffect(() => {
-    // Listen to manual sync triggers from Sidebar
     const handleSyncEvent = () => {
-      // Invalidate queries to refresh lists and details
       queryClient.invalidateQueries({ queryKey: ['threads'] });
       if (selectedThreadId) {
         queryClient.invalidateQueries({ queryKey: ['threadDetails', selectedThreadId] });
@@ -136,255 +141,192 @@ export function InboxPage() {
   };
 
   return (
-    <div className="flex-1 flex h-full min-w-0 overflow-hidden transition-colors duration-300">
-      {/* Pane 1: Threads List */}
-      <div className="w-96 border-r border-border flex flex-col h-full bg-card/20 min-w-[24rem]">
-        <div className="p-4 border-b border-border flex items-center justify-between">
-          <div className="flex flex-col">
-            <h2 className="text-sm font-bold tracking-tight">
-              {categoryFilter ? `${categoryFilter} Threads` : 'All Conversations'}
-            </h2>
-            <span className="text-[10px] text-muted-foreground">
-              {threads.length} conversations found
+    <div className="flex-1 flex h-full min-w-0 bg-background overflow-hidden">
+      {/* Pane 1: Threads List (Column 2 in Dashboard) */}
+      <div className="w-[380px] shrink-0 border-r border-border flex flex-col h-full bg-sidebar/30">
+        <div className="h-16 border-b border-border flex items-center justify-between px-5 shrink-0 bg-background/50 backdrop-blur-md sticky top-0 z-10">
+          <h2 className="text-[14px] font-semibold tracking-tight text-foreground">
+            {categoryFilter ? `${categoryFilter}` : 'Inbox'}
+          </h2>
+          
+          <div className="flex items-center gap-2">
+            <span className="text-[11px] text-muted-foreground font-medium">
+              {totalThreads > 0 ? `${totalThreads} conversations` : ''}
             </span>
           </div>
-          <Button variant="ghost" size="icon" onClick={() => refetchThreads()} className="rounded-full">
-            <RefreshCw className={`w-3.5 h-3.5 ${loadingThreads ? 'animate-spin' : ''}`} />
-          </Button>
         </div>
 
-        {/* List Content */}
-        <div className="flex-1 overflow-y-auto divide-y divide-border">
+        {/* Thread List */}
+        <div className="flex-1 overflow-y-auto custom-scrollbar">
           {loadingThreads ? (
-            <div className="p-8 text-center text-xs text-muted-foreground flex flex-col items-center gap-3">
-              <RefreshCw className="w-6 h-6 animate-spin text-primary" />
-              <span>Loading email threads...</span>
+            <div className="p-8 text-center text-[13px] text-muted-foreground flex flex-col items-center gap-3">
+              <RefreshCw className="w-4 h-4 animate-spin text-muted-foreground" />
+              <span>Loading threads...</span>
             </div>
           ) : threads.length === 0 ? (
-            <div className="p-8 text-center text-xs text-muted-foreground">
-              No threads found. Click 'Sync Now' in the sidebar to load recent messages.
+            <div className="p-8 text-center text-[13px] text-muted-foreground flex flex-col items-center gap-3">
+              <Mail className="w-8 h-8 text-muted-foreground/30" />
+              <span>Your inbox is empty.</span>
             </div>
           ) : (
-            threads.map((thread: Thread) => {
-              const date = new Date(thread.lastMessageDate);
-              const formattedDate = date.toLocaleDateString(undefined, {
-                month: 'short',
-                day: 'numeric',
-              });
+            <div className="divide-y divide-border/30">
+              {threads.map((thread: Thread) => {
+                const date = new Date(thread.lastMessageDate);
+                const isSelected = selectedThreadId === thread.id;
 
-              return (
-                <div
-                  key={thread.id}
-                  onClick={() => setSelectedThreadId(thread.id)}
-                  className={`p-4 flex flex-col gap-1.5 cursor-pointer hover:bg-muted/40 transition-colors ${
-                    selectedThreadId === thread.id ? 'bg-muted/65 border-l-2 border-primary' : ''
-                  }`}
-                >
-                  <div className="flex justify-between items-start gap-2">
-                    <span className="text-xs font-semibold truncate flex-1 leading-tight">
-                      {thread.subject}
-                    </span>
-                    <span className="text-[10px] text-muted-foreground whitespace-nowrap">
-                      {formattedDate}
-                    </span>
-                  </div>
-                  <p className="text-[11px] text-muted-foreground line-clamp-2 leading-relaxed">
-                    {thread.snippet}
-                  </p>
-                  {thread.summary && (
-                    <div className="inline-flex items-center gap-1 text-[9px] text-primary/80 font-medium">
-                      <Sparkles className="w-2.5 h-2.5" /> AI Summarized
+                return (
+                  <div
+                    key={thread.id}
+                    onClick={() => {
+                      const q = searchParams.toString();
+                      router.push(`/dashboard/${thread.id}${q ? `?${q}` : ''}`);
+                    }}
+                    className={`group relative p-4 flex flex-col gap-1.5 cursor-pointer transition-all duration-200 ${
+                      isSelected ? 'bg-secondary' : 'hover:bg-muted/40'
+                    }`}
+                  >
+                    {isSelected && (
+                      <motion.div layoutId="thread-indicator" className="absolute left-0 top-0 bottom-0 w-1 bg-foreground" />
+                    )}
+                    
+                    <div className="flex justify-between items-start gap-3">
+                      <span className={`text-[13px] font-semibold truncate flex-1 leading-tight ${isSelected ? 'text-foreground' : 'text-foreground/80'}`}>
+                        {thread.subject || 'No Subject'}
+                      </span>
+                      <span className={`text-[11px] whitespace-nowrap ${isSelected ? 'text-foreground font-semibold' : 'text-muted-foreground'}`}>
+                        {date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                      </span>
                     </div>
-                  )}
-                </div>
-              );
-            })
+                    
+                    <p className="text-[12px] text-muted-foreground line-clamp-2 leading-relaxed">
+                      {thread.snippet}
+                    </p>
+                    
+                    {thread.summary && (
+                      <div className="mt-1 flex items-center gap-2">
+                        <Badge variant="secondary" className="h-5 px-1.5 bg-secondary text-foreground border-none rounded-[6px] gap-1">
+                          <Sparkles className="w-2.5 h-2.5 text-muted-foreground" /> AI Summary
+                        </Badge>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
           )}
         </div>
       </div>
 
-      {/* Pane 2: Thread Conversation details */}
-      <div className="flex-1 flex flex-col h-full bg-background min-w-0">
+      {/* Pane 2: Reading Panel & Workspace (Column 3 in Dashboard) */}
+      <div className="flex-1 flex flex-col h-full min-w-0 bg-background relative overflow-y-auto custom-scrollbar">
         {loadingDetails ? (
-          <div className="flex-1 flex items-center justify-center flex-col gap-3">
-            <RefreshCw className="w-8 h-8 text-primary animate-spin" />
-            <span className="text-xs text-muted-foreground">Retrieving messages and generating thread context...</span>
+          <div className="flex-1 flex items-center justify-center flex-col gap-4">
+            <div className="w-10 h-10 rounded-full bg-secondary flex items-center justify-center">
+              <RefreshCw className="w-5 h-5 text-muted-foreground animate-spin" />
+            </div>
+            <span className="text-[13px] text-muted-foreground font-medium">Loading thread workspace...</span>
           </div>
         ) : details ? (
-          <div className="flex-1 flex flex-col h-full overflow-hidden">
-            {/* Thread Header */}
-            <div className="p-4 border-b border-border bg-card/10 flex flex-col gap-1">
+          <div className="p-8 max-w-4xl mx-auto w-full space-y-8 pb-32">
+            
+            {/* 1. Header & Metadata Section */}
+            <div className="space-y-3">
               <div className="flex justify-between items-start gap-4">
-                <h1 className="text-base font-bold leading-tight flex-1">
-                  {details.thread.subject}
+                <h1 className="text-[24px] font-bold leading-tight text-foreground">
+                  {details.thread.subject ? details.thread.subject.charAt(0).toUpperCase() + details.thread.subject.slice(1) : 'No Subject'}
                 </h1>
-                <Badge className={getCategoryColor(details.emails[0]?.category)}>
-                  {details.emails[0]?.category}
-                </Badge>
-              </div>
-              <span className="text-[10px] text-muted-foreground flex items-center gap-2">
-                <Calendar className="w-3.5 h-3.5" /> 
-                First Email: {new Date(details.emails[0]?.internalDate).toLocaleString()}
-              </span>
-            </div>
-
-            {/* Main conversation section */}
-            <div className="flex-1 overflow-y-auto p-4 space-y-4">
-              {/* Gemini Unified Thread Summary Card */}
-              {details.thread.summary && (
-                <Card className="border border-primary/20 bg-primary/5 rounded-xl">
-                  <CardHeader className="py-3 px-4 flex flex-row items-center gap-2 border-b border-primary/10">
-                    <Sparkles className="w-4 h-4 text-primary" />
-                    <CardTitle className="text-xs font-bold text-primary uppercase tracking-wider">
-                      AI Thread Summary
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="py-3 px-4 text-xs leading-relaxed">
-                    {details.thread.summary}
-                  </CardContent>
-                </Card>
-              )}
-
-              {/* Message History */}
-              <div className="space-y-4 pt-2">
-                {details.emails.map((email: Email) => {
-                  const isHtmlViewerActive = activeHtmlViewEmailId === email.id;
-
-                  return (
-                    <Card key={email.id} className="border border-border/60 bg-card/45 shadow-sm rounded-xl overflow-hidden">
-                      <CardHeader className="py-3 px-4 bg-muted/20 flex flex-row items-center justify-between border-b border-border/50">
-                        <div className="flex items-center gap-3">
-                          <div className="w-7 h-7 rounded-full bg-border flex items-center justify-center">
-                            <User className="w-3.5 h-3.5 text-muted-foreground" />
-                          </div>
-                          <div className="flex flex-col">
-                            <span className="text-xs font-semibold truncate max-w-xs">{email.sender}</span>
-                            <span className="text-[9px] text-muted-foreground">To: {email.receiver}</span>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <span className="text-[10px] text-muted-foreground">
-                            {new Date(email.internalDate).toLocaleString()}
-                          </span>
-                          {email.html && (
-                            <Button 
-                              variant="ghost" 
-                              size="icon" 
-                              onClick={() => setActiveHtmlViewEmailId(isHtmlViewerActive ? null : email.id)}
-                              className="w-7 h-7 rounded-full"
-                              title="Toggle Original HTML view"
-                            >
-                              <Eye className="w-3.5 h-3.5" />
-                            </Button>
-                          )}
-                        </div>
-                      </CardHeader>
-                      <CardContent className="p-4 text-xs leading-relaxed">
-                        {isHtmlViewerActive && email.html ? (
-                          <div className="border border-border rounded-lg overflow-hidden bg-white">
-                            <iframe
-                              srcDoc={email.html}
-                              sandbox="allow-popups"
-                              className="w-full h-96 border-none"
-                            />
-                          </div>
-                        ) : (
-                          <div className="whitespace-pre-wrap">{email.body}</div>
-                        )}
-
-                        {/* Message Individual Summary */}
-                        {email.summary && (
-                          <div className="mt-4 p-2.5 rounded-lg bg-muted/40 border border-border/50 text-[11px] text-muted-foreground flex flex-col gap-0.5">
-                            <span className="font-bold text-[9px] uppercase tracking-wider text-foreground/80 flex items-center gap-1">
-                              <Sparkles className="w-2.5 h-2.5 text-primary" /> Message Summary
-                            </span>
-                            {email.summary}
-                          </div>
-                        )}
-                      </CardContent>
-                    </Card>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* AI Reply Builder and Compose Form */}
-            <div className="p-4 border-t border-border bg-card/20 space-y-3">
-              <div className="flex flex-col gap-2">
-                <div className="flex justify-between items-center">
-                  <span className="text-xs font-bold flex items-center gap-1.5">
-                    <Sparkles className="w-4 h-4 text-primary animate-pulse" /> Reply with Auto Mail Assistant
-                  </span>
-                  {draftReplyMutation.isPending && <span className="text-[10px] text-muted-foreground">Drafting reply...</span>}
-                </div>
-                
-                <div className="flex gap-2">
-                  <Textarea
-                    placeholder="Provide reply instructions (e.g., 'agree to meet on Monday, say I will send details')"
-                    value={prompt}
-                    onChange={(e) => setPrompt(e.target.value)}
-                    disabled={draftReplyMutation.isPending}
-                    className="text-xs min-h-[4rem] bg-background/50 border-border"
-                  />
-                  <Button
-                    onClick={handleGenerateDraft}
-                    disabled={draftReplyMutation.isPending || !prompt.trim()}
-                    className="px-4 text-xs flex flex-col justify-center items-center gap-1.5 shrink-0 bg-primary hover:bg-primary/90 text-primary-foreground h-auto rounded-xl cursor-pointer"
+                <div className="flex items-center gap-3 shrink-0">
+                  {details.emails[0]?.category && (
+                    <Badge className={getCategoryColor(details.emails[0]?.category) + " shrink-0 shadow-none px-2 h-6 text-[11px]"}>
+                      {details.emails[0]?.category}
+                    </Badge>
+                  )}
+                  <Button 
+                    variant="default" 
+                    size="sm" 
+                    className="h-8 text-[12px] font-semibold gap-2 shadow-sm" 
+                    onClick={() => {
+                      // Navigate to compose prefilled
+                      router.push(`/dashboard/compose?to=${encodeURIComponent(details.emails[0]?.sender)}&subject=${encodeURIComponent('Re: ' + details.thread.subject)}`);
+                    }}
                   >
-                    <Sparkles className="w-4 h-4" />
-                    <span>Draft</span>
+                    <Reply className="w-3.5 h-3.5" />
+                    Reply
                   </Button>
                 </div>
               </div>
 
-              {/* Draft Editing Box */}
-              {(draft || sendReplyMutation.isSuccess) && (
-                <div className="space-y-2 pt-1">
-                  {sendReplyMutation.isSuccess ? (
-                    <div className="p-3 text-xs rounded-xl border border-green-500/20 bg-green-500/10 text-green-400 flex items-center gap-2">
-                      <CheckCircle2 className="w-4 h-4 shrink-0" />
-                      <span>Reply sent successfully! Syncing thread changes...</span>
-                    </div>
-                  ) : (
-                    <>
-                      <div className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider">
-                        Review AI Generated Draft (Editable)
-                      </div>
-                      <Textarea
-                        value={draft}
-                        onChange={(e) => setDraft(e.target.value)}
-                        disabled={sendReplyMutation.isPending}
-                        className="text-xs min-h-[8rem] bg-background border-border"
-                      />
-                      <div className="flex justify-end gap-2">
-                        <Button 
-                          variant="ghost" 
-                          size="sm" 
-                          onClick={() => setDraft('')}
-                          className="text-xs cursor-pointer"
-                        >
-                          Clear
-                        </Button>
-                        <Button
-                          onClick={handleSendReply}
-                          disabled={sendReplyMutation.isPending || !draft.trim()}
-                          size="sm"
-                          className="text-xs font-bold flex items-center gap-2 bg-foreground text-background hover:bg-foreground/90 cursor-pointer"
-                        >
-                          {sendReplyMutation.isPending ? <RefreshCw className="w-3 h-3 animate-spin" /> : <Send className="w-3 h-3" />}
-                          Send Response
-                        </Button>
-                      </div>
-                    </>
-                  )}
-                </div>
-              )}
             </div>
+
+            {/* 2. AI Thread Summary Card */}
+            {details.thread.summary && !details.thread.summary.includes('Failed to generate') && (
+              <Card className="bg-secondary/30 border border-border shadow-none overflow-hidden">
+                <div className="px-5 py-3 border-b border-border/50 flex items-center gap-2 bg-secondary/30">
+                  <Sparkles className="w-4 h-4 text-muted-foreground" />
+                  <span className="text-[12px] font-bold text-foreground uppercase tracking-wider">Executive Summary</span>
+                </div>
+                <div className="p-5 text-[14px] leading-relaxed text-foreground/90">
+                  {details.thread.summary}
+                </div>
+              </Card>
+            )}
+
+            {/* 3. Conversation Thread */}
+            <div className="space-y-6">
+                {details.emails.map((email: Email, idx: number) => (
+                  <Card key={email.id} className="shadow-sm overflow-hidden bg-card">
+                    <div className="px-5 py-4 border-b border-border/50 flex items-center justify-between bg-sidebar/30">
+                      <div className="flex items-center gap-3">
+                        <div className="w-9 h-9 rounded-full bg-secondary border border-border flex items-center justify-center shrink-0 font-bold text-[13px] text-muted-foreground">
+                          {email.sender.charAt(0).toUpperCase()}
+                        </div>
+                        <div className="flex flex-col">
+                          <span className="text-[14px] font-semibold text-foreground leading-tight">{email.sender}</span>
+                          <span className="text-[12px] text-muted-foreground">to {email.receiver}</span>
+                        </div>
+                      </div>
+                      <span className="text-[12px] text-muted-foreground font-medium">
+                        {new Date(email.internalDate).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
+                      </span>
+                    </div>
+                    
+                    <div className="p-0">
+                      {email.html ? (
+                        <div className="bg-white">
+                          <iframe
+                            srcDoc={email.html}
+                            sandbox="allow-popups allow-same-origin"
+                            className="w-full min-h-[300px] border-none block"
+                            onLoad={(e) => {
+                              const iframe = e.target as HTMLIFrameElement;
+                              if (iframe.contentWindow) {
+                                iframe.style.height = iframe.contentWindow.document.body.scrollHeight + 50 + 'px';
+                              }
+                            }}
+                          />
+                        </div>
+                      ) : (
+                        <div className="p-6 text-[14px] leading-relaxed whitespace-pre-wrap text-foreground/90">
+                          {email.body}
+                        </div>
+                      )}
+                    </div>
+                  </Card>
+                ))}
+              </div>
+
+
+
           </div>
         ) : (
-          <div className="flex-1 flex flex-col items-center justify-center p-8 text-center text-xs text-muted-foreground gap-2">
-            <AlertCircle className="w-8 h-8 text-muted-foreground/60" />
-            <span>Select an email thread from the list to view the conversation details and draft replies.</span>
+          <div className="flex-1 flex flex-col items-center justify-center p-8 text-center gap-4">
+            <div className="w-16 h-16 rounded-full bg-secondary border border-border flex items-center justify-center">
+              <Mail className="w-7 h-7 text-muted-foreground/50" />
+            </div>
+            <div className="flex flex-col gap-1">
+              <span className="font-semibold text-[16px] text-foreground">No Thread Selected</span>
+              <span className="text-[14px] text-muted-foreground max-w-[250px]">Select an email thread from the list to view the conversation and AI workspace.</span>
+            </div>
           </div>
         )}
       </div>

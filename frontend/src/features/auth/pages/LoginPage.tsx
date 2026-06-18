@@ -5,7 +5,7 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/com
 import { Button } from '@/components/ui/button';
 import { useAuth } from '../hooks/useAuth';
 import { useTheme } from '@/hooks/useTheme';
-import { Mail, Sparkles, Shield, RefreshCw } from 'lucide-react';
+import { Mail, Sparkles, Shield, RefreshCw, Sun, Moon } from 'lucide-react';
 
 export function LoginPage() {
   const [loading, setLoading] = useState(false);
@@ -43,28 +43,32 @@ export function LoginPage() {
 
   return (
     <div className="relative min-h-screen flex items-center justify-center bg-background text-foreground overflow-hidden transition-colors duration-300">
-      {/* Decorative Gradient Background Elements */}
-      <div className="absolute top-[-20%] left-[-10%] w-[50%] h-[50%] rounded-full bg-primary/20 blur-[150px] pointer-events-none" />
-      <div className="absolute bottom-[-20%] right-[-10%] w-[50%] h-[50%] rounded-full bg-indigo-500/10 blur-[150px] pointer-events-none" />
+      {/* Decorative Gradient Background Elements Removed */}
 
       {/* Theme Switcher Header */}
       <div className="absolute top-6 right-6">
-        <Button variant="ghost" size="sm" onClick={toggleTheme} className="rounded-full px-3">
-          {theme === 'dark' ? '☀️ Light Mode' : '🌙 Dark Mode'}
+        <Button 
+          variant="ghost" 
+          size="sm" 
+          onClick={toggleTheme} 
+          className="rounded-[8px] px-3 bg-card/30 border border-border/50 hover:bg-muted text-muted-foreground hover:text-foreground"
+        >
+          {theme === 'dark' ? <Sun className="w-3.5 h-3.5 mr-2" /> : <Moon className="w-3.5 h-3.5 mr-2" />}
+          {theme === 'dark' ? 'Light' : 'Dark'}
         </Button>
       </div>
 
       <div className="w-full max-w-lg p-6 relative z-10">
         <div className="text-center mb-8">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-border bg-card/50 backdrop-blur-sm text-xs font-medium text-primary mb-3">
-            <Sparkles className="w-3.5 h-3.5" />
-            AI-Powered Email Intelligence
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-border bg-card/50 backdrop-blur-sm text-xs font-medium text-foreground mb-3">
+            <Sparkles className="w-3.5 h-3.5 text-muted-foreground" />
+            Smart Email Assistant
           </div>
           <h1 className="text-4xl font-extrabold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-foreground via-foreground/90 to-muted-foreground mb-2">
             Auto Mail
           </h1>
           <p className="text-muted-foreground text-sm max-w-sm mx-auto">
-            Sync your emails, chat with your history, automatically categorize, and draft contextual replies.
+            Sync your emails, ask questions about your history, automatically categorize, and draft fast replies.
           </p>
         </div>
 
@@ -128,7 +132,7 @@ export function LoginPage() {
                 <div className="p-2 rounded-full border border-border bg-card/40">
                   <Sparkles className="w-4 h-4 text-foreground/80" />
                 </div>
-                <span>Gemini RAG Chat</span>
+                <span>Smart AI Chat</span>
               </div>
               <div className="flex flex-col items-center gap-1.5">
                 <div className="p-2 rounded-full border border-border bg-card/40">

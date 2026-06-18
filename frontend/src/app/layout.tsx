@@ -1,22 +1,17 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Inter } from "next/font/google";
 import "./globals.css";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
+const inter = Inter({
+  variable: "--font-sans",
   subsets: ["latin"],
 });
 
 import { Providers } from "@/components/Providers";
 
 export const metadata: Metadata = {
-  title: "Auto Mail - AI Sync & RAG Assistant",
-  description: "Sync your email inbox, search history with vector RAG, categorize messages, and compose responses utilizing Gemini AI.",
+  title: "Auto Mail - Smart AI Email Assistant",
+  description: "Sync your email inbox, ask questions about your history, automatically categorize messages, and draft fast responses utilizing AI.",
 };
 
 export default function RootLayout({
@@ -27,9 +22,9 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      className={`${inter.variable} dark h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col">
+      <body className="min-h-full flex flex-col font-sans">
         <Providers>{children}</Providers>
       </body>
     </html>

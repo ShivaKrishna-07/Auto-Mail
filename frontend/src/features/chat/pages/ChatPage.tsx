@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useEffect, useState, useRef } from 'react';
+import { useParams, useRouter, usePathname } from 'next/navigation';
 import { useQueryClient } from '@tanstack/react-query';
 import { useChatSessions, useChatHistory, useAskQuestionMutation } from '../hooks/useChat';
 import { api } from '@/lib/api';
@@ -20,6 +21,7 @@ import {
   Calendar,
   ExternalLink
 } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 
 interface ChatMessage {
   id: string;
@@ -44,43 +46,34 @@ interface ChatSession {
 
 export function ChatPage() {
   const queryClient = useQueryClient();
-  const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
+  const params = useParams();
+  const router = useRouter();
+  const pathname = usePathname();
+  
+  const currentSessionId = (params.chatId as string) || null;
   const [query, setQuery] = useState('');
   
-  // RAG Sources preview panel states
   const [selectedSourceEmail, setSelectedSourceEmail] = useState<any | null>(null);
   const [fetchingSourceEmail, setFetchingSourceEmail] = useState(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // Dynamic document title update
   useEffect(() => {
     document.title = 'AI Search Chat - Auto Mail';
   }, []);
 
-  // 1. Fetch saved sessions via TanStack Query
   const { data: sessions = [], isLoading: loadingSessions, refetch: refetchSessions } = useChatSessions();
 
-  // Auto-select first session if present
-  useEffect(() => {
-    if (sessions.length > 0 && !currentSessionId) {
-      setCurrentSessionId(sessions[0].sessionId);
-    }
-  }, [sessions, currentSessionId]);
-
-  // 2. Fetch selected session history via TanStack Query
   const { data: messages = [], isLoading: loadingMessages } = useChatHistory(currentSessionId);
 
-  // 3. Mutation to submit query
   const askMutation = useAskQuestionMutation();
 
   useEffect(() => {
-    // Scroll to bottom when message log changes
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, askMutation.isPending]);
 
   const startNewSession = () => {
-    setCurrentSessionId(null);
+    router.push('/dashboard/chat');
     setSelectedSourceEmail(null);
   };
 
@@ -91,13 +84,12 @@ export function ChatPage() {
     const userQueryText = query;
     setQuery('');
 
-    // Call mutation
     askMutation.mutate(
       { query: userQueryText, sessionId: currentSessionId || undefined },
       {
         onSuccess: (data) => {
           if (!currentSessionId && data.sessionId) {
-            setCurrentSessionId(data.sessionId);
+            router.push(`/dashboard/chat/${data.sessionId}`);
           }
         },
         onError: (err) => {
@@ -107,7 +99,6 @@ export function ChatPage() {
     );
   };
 
-  // Preview an email source context panel
   const handlePreviewSource = async (emailId: string) => {
     setFetchingSourceEmail(true);
     try {
@@ -115,7 +106,6 @@ export function ChatPage() {
       const sourceMeta = match?.sources?.find((s: any) => s.id === emailId);
       
       if (sourceMeta) {
-        // Fetch thread detail to extract full text body
         const threadDetails = await api.get(`/api/emails/threads/${sourceMeta.threadId}`);
         const emailDetail = threadDetails.emails.find((e: any) => e.id === emailId);
         setSelectedSourceEmail(emailDetail || sourceMeta);
@@ -150,10 +140,10 @@ export function ChatPage() {
           <button
             key={emailId + '-' + matchIndex}
             onClick={() => handlePreviewSource(emailId)}
-            className="mx-0.5 inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md border border-primary/30 bg-primary/10 hover:bg-primary/20 text-[10px] font-bold text-primary transition-all cursor-pointer align-baseline"
+            className="mx-1 inline-flex items-center gap-1 px-2 py-0.5 rounded-[6px] bg-secondary hover:bg-muted text-[11px] font-bold text-foreground transition-colors cursor-pointer align-baseline"
             title={`Source: ${sourceObj.subject}`}
           >
-            <Mail className="w-2.5 h-2.5" />
+            <Mail className="w-3 h-3" />
             <span>Ref</span>
           </button>
         );
@@ -172,37 +162,41 @@ export function ChatPage() {
   };
 
   return (
-    <div className="flex-1 flex h-full min-w-0 overflow-hidden transition-colors duration-300">
+    <div className="flex-1 flex h-full min-w-0 bg-background overflow-hidden relative">
+      
       {/* Sidebar Panel 1: Chat Sessions */}
-      <div className="w-64 border-r border-border flex flex-col h-full bg-card/20 min-w-[16rem]">
-        <div className="p-4 border-b border-border flex justify-between items-center">
-          <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-            Saved Searches
+      <div className="w-[300px] border-r border-border flex flex-col h-full bg-sidebar/30 shrink-0">
+        <div className="h-16 border-b border-border flex justify-between items-center px-5 shrink-0 bg-background/50 backdrop-blur-md">
+          <span className="text-[13px] font-semibold text-foreground tracking-tight">
+            Chat History
           </span>
-          <Button variant="ghost" size="icon" onClick={startNewSession} className="rounded-full w-7 h-7">
+          <Button variant="ghost" size="icon" onClick={startNewSession} className="rounded-full w-8 h-8 text-muted-foreground hover:text-foreground">
             <Plus className="w-4 h-4" />
           </Button>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-2 space-y-1">
+        <div className="flex-1 overflow-y-auto p-3 space-y-1 custom-scrollbar">
           {loadingSessions ? (
-            <div className="p-4 text-center text-xs text-muted-foreground flex justify-center items-center gap-2">
-              <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-              <span>Loading logs...</span>
+            <div className="p-4 text-center text-[12px] text-muted-foreground flex flex-col justify-center items-center gap-3">
+              <RefreshCw className="w-4 h-4 animate-spin text-muted-foreground" />
+              <span>Loading history...</span>
             </div>
           ) : sessions.length === 0 ? (
-            <div className="p-4 text-center text-[11px] text-muted-foreground">
-              No chat logs found. Start a new search below!
+            <div className="p-4 text-center text-[12px] text-muted-foreground flex flex-col items-center gap-2">
+              <MessageSquare className="w-6 h-6 text-muted-foreground/30" />
+              No chat logs found.
             </div>
           ) : (
             sessions.map((session: ChatSession) => (
               <Button
                 key={session.sessionId}
                 variant={currentSessionId === session.sessionId ? 'secondary' : 'ghost'}
-                onClick={() => setCurrentSessionId(session.sessionId)}
-                className="w-full justify-start text-left text-xs truncate font-medium rounded-lg h-9 gap-2 px-3"
+                onClick={() => router.push(`/dashboard/chat/${session.sessionId}`)}
+                className={`w-full justify-start text-left text-[13px] truncate font-medium rounded-[8px] h-10 gap-3 px-3 transition-colors ${
+                  currentSessionId === session.sessionId ? 'bg-secondary text-foreground hover:bg-muted' : 'text-muted-foreground hover:text-foreground'
+                }`}
               >
-                <MessageSquare className="w-3.5 h-3.5 shrink-0 text-muted-foreground" />
+                <MessageSquare className="w-4 h-4 shrink-0" />
                 <span className="truncate flex-1">{session.title || 'Conversation Query'}</span>
               </Button>
             ))
@@ -211,29 +205,32 @@ export function ChatPage() {
       </div>
 
       {/* Panel 2: Interactive Chat Stream */}
-      <div className="flex-1 flex flex-col h-full bg-background min-w-0">
-        <div className="p-4 border-b border-border bg-card/10 flex items-center justify-between">
+      <div className="flex-1 flex flex-col h-full bg-background min-w-0 relative">
+        <div className="h-16 border-b border-border flex items-center justify-between px-6 shrink-0 bg-background/95 backdrop-blur z-10">
           <div className="flex items-center gap-2">
-            <Sparkles className="w-4 h-4 text-primary animate-pulse" />
-            <h1 className="text-sm font-bold tracking-tight">Auto Mail AI Chat (RAG)</h1>
+            <Sparkles className="w-4 h-4 text-muted-foreground" />
+            <h1 className="text-[15px] font-semibold tracking-tight text-foreground">Smart Search Assistant</h1>
           </div>
-          <Button variant="ghost" size="sm" onClick={startNewSession} className="text-xs flex items-center gap-1.5 px-3">
-            <Plus className="w-3.5 h-3.5" /> New Session
+          <Button variant="outline" size="sm" onClick={startNewSession} className="text-[12px] font-semibold flex items-center gap-2 px-4 shadow-sm border-border/80 bg-background hover:bg-muted/50">
+            <Plus className="w-3.5 h-3.5" /> New Chat
           </Button>
         </div>
 
         {/* Message Thread */}
-        <div className="flex-1 overflow-y-auto p-4 space-y-4">
+        <div className="flex-1 overflow-y-auto custom-scrollbar px-6 pb-[140px]">
           {messages.length === 0 && !askMutation.isPending ? (
-            <div className="h-full flex flex-col items-center justify-center text-center p-8 max-w-md mx-auto space-y-4">
-              <div className="w-12 h-12 rounded-full border border-primary/20 bg-primary/5 flex items-center justify-center text-primary shadow-inner">
-                <Sparkles className="w-6 h-6 animate-pulse" />
+            <div className="h-full flex flex-col items-center justify-center text-center p-8 max-w-lg mx-auto space-y-6">
+              <div className="w-16 h-16 rounded-[16px] bg-secondary flex items-center justify-center text-foreground shadow-inner">
+                <Sparkles className="w-8 h-8" />
               </div>
-              <h2 className="text-base font-bold">Ask Anything About Your Emails</h2>
-              <p className="text-xs text-muted-foreground leading-relaxed">
-                Gemini will search your pgvector database for relevant emails, formulate answers, and cite sources automatically. Try asking:
-              </p>
-              <div className="w-full space-y-2 text-left pt-2">
+              <div className="space-y-2">
+                <h2 className="text-[20px] font-bold text-foreground">Ask anything about your emails</h2>
+                <p className="text-[14px] text-muted-foreground leading-relaxed">
+                  Our smart search helps you find relevant emails, formulates accurate answers, and cites its sources.
+                </p>
+              </div>
+              
+              <div className="w-full grid gap-3 pt-4">
                 {[
                   "What did my manager say about the deadline?",
                   "Find all flight booking receipts and summaries.",
@@ -244,26 +241,26 @@ export function ChatPage() {
                     onClick={() => {
                       setQuery(q);
                     }}
-                    className="w-full p-2.5 text-xs text-left rounded-xl border border-border bg-card/40 hover:bg-muted/40 text-muted-foreground hover:text-foreground transition-all flex items-center justify-between gap-2 cursor-pointer"
+                    className="w-full p-4 text-[13px] font-medium text-left rounded-[12px] border border-border bg-card hover:bg-muted/40 hover:border-border/80 text-foreground transition-all flex items-center justify-between gap-4 shadow-sm group"
                   >
                     <span>{q}</span>
-                    <ArrowRight className="w-3.5 h-3.5 text-primary shrink-0" />
+                    <ArrowRight className="w-4 h-4 text-muted-foreground group-hover:text-foreground transition-colors shrink-0" />
                   </button>
                 ))}
               </div>
             </div>
           ) : (
-            <div className="space-y-4">
+            <div className="space-y-8 max-w-3xl mx-auto py-8">
               {messages.map((msg: ChatMessage) => (
                 <div
                   key={msg.id}
                   className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
                 >
                   <div
-                    className={`max-w-2xl rounded-2xl p-4 shadow-sm text-xs leading-relaxed ${
+                    className={`max-w-[85%] rounded-[16px] px-5 py-4 text-[14px] leading-relaxed shadow-sm ${
                       msg.role === 'user'
-                        ? 'bg-foreground text-background font-medium'
-                        : 'bg-card border border-border text-foreground'
+                        ? 'bg-foreground text-background font-medium rounded-tr-[4px]'
+                        : 'bg-card border border-border/80 text-foreground rounded-tl-[4px]'
                     }`}
                   >
                     {/* Render Content */}
@@ -275,20 +272,20 @@ export function ChatPage() {
 
                     {/* Sources Badge List */}
                     {msg.role === 'assistant' && msg.sources && msg.sources.length > 0 && (
-                      <div className="mt-4 pt-3 border-t border-border/60 space-y-2">
-                        <span className="text-[10px] font-bold text-muted-foreground/80 uppercase tracking-wider block">
-                          Ingested Sources Cited:
+                      <div className="mt-5 pt-4 border-t border-border/50 space-y-3">
+                        <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider block">
+                          Sources Cited
                         </span>
                         <div className="flex flex-wrap gap-2">
                           {msg.sources.map((src) => (
                             <button
                               key={src.id}
                               onClick={() => handlePreviewSource(src.id)}
-                              className="text-[10px] text-left px-2.5 py-1.5 rounded-lg border border-border bg-muted/20 hover:bg-muted/50 transition-all text-muted-foreground hover:text-foreground flex items-center gap-1.5 cursor-pointer max-w-xs truncate"
+                              className="text-[12px] text-left px-3 py-2 rounded-[8px] border border-border/60 bg-muted/30 hover:bg-muted transition-all text-muted-foreground hover:text-foreground flex items-center gap-2 cursor-pointer max-w-sm truncate shadow-sm"
                               title={`Preview citation: ${src.subject}`}
                             >
-                              <FileText className="w-3.5 h-3.5 text-primary shrink-0" />
-                              <span className="truncate flex-1 font-semibold">{src.subject}</span>
+                              <FileText className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+                              <span className="truncate flex-1 font-semibold">{src.subject || 'Unknown Subject'}</span>
                             </button>
                           ))}
                         </div>
@@ -300,108 +297,119 @@ export function ChatPage() {
 
               {askMutation.isPending && (
                 <div className="flex justify-start">
-                  <div className="max-w-2xl rounded-2xl p-4 bg-card border border-border flex items-center gap-3 text-xs text-muted-foreground shadow-sm">
-                    <RefreshCw className="w-4 h-4 text-primary animate-spin" />
-                    <span>Searching vector database and compiling Gemini answer...</span>
+                  <div className="max-w-[85%] rounded-[16px] rounded-tl-[4px] px-5 py-4 bg-card border border-border/80 flex items-center gap-3 text-[14px] text-muted-foreground shadow-sm">
+                    <RefreshCw className="w-4 h-4 text-muted-foreground animate-spin" />
+                    <span className="font-medium">Searching emails and thinking...</span>
+                  </div>
+                </div>
+              )}
+              <div ref={messagesEndRef} />
+            </div>
+          )}
+        </div>
+
+        {/* Sticky Input Form Box */}
+        <div className="absolute bottom-0 left-0 right-0 p-6 bg-gradient-to-t from-background via-background to-transparent z-10 pointer-events-none">
+          <div className="max-w-3xl mx-auto w-full pointer-events-auto">
+            <form onSubmit={handleQuerySend} className="p-2 border border-border bg-card/90 backdrop-blur-xl shadow-xl flex items-center gap-2 rounded-[16px]">
+              <Input
+                placeholder="Ask a question about your emails..."
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                disabled={askMutation.isPending}
+                className="text-[14px] bg-transparent border-none focus-visible:ring-0 px-4 h-12 flex-1 shadow-none"
+              />
+              <Button
+                type="submit"
+                disabled={askMutation.isPending || !query.trim()}
+                className="px-6 h-12 bg-foreground text-background hover:bg-foreground/90 font-bold rounded-[12px] flex items-center gap-2 shadow-md"
+              >
+                <Send className="w-4 h-4" />
+                <span>Ask</span>
+              </Button>
+            </form>
+          </div>
+        </div>
+      </div>
+
+      {/* Pane 3: Interactive Citations Preview Panel */}
+      <AnimatePresence>
+        {selectedSourceEmail && (
+          <motion.div 
+            initial={{ width: 0, opacity: 0 }}
+            animate={{ width: 420, opacity: 1 }}
+            exit={{ width: 0, opacity: 0 }}
+            className="border-l border-border flex flex-col h-full bg-sidebar/30 shrink-0 overflow-hidden"
+          >
+            <div className="h-16 border-b border-border flex justify-between items-center px-6 shrink-0 bg-background/50 backdrop-blur-md w-[420px]">
+              <span className="text-[13px] font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
+                <FileText className="w-4 h-4 text-muted-foreground" /> Citation Context
+              </span>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => setSelectedSourceEmail(null)}
+                className="w-8 h-8 rounded-full text-muted-foreground hover:text-foreground hover:bg-muted"
+              >
+                ✕
+              </Button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto custom-scrollbar p-6 w-[420px]">
+              {fetchingSourceEmail ? (
+                <div className="py-12 text-center text-[13px] text-muted-foreground flex flex-col items-center gap-3">
+                  <RefreshCw className="w-5 h-5 animate-spin text-muted-foreground" />
+                  <span>Loading full email content...</span>
+                </div>
+              ) : (
+                <div className="space-y-6">
+                  <div className="space-y-3">
+                    <h3 className="text-[18px] font-bold leading-tight text-foreground">{selectedSourceEmail.subject}</h3>
+                    <div className="space-y-2 text-[12px] text-muted-foreground bg-card p-4 rounded-[12px] border border-border/50">
+                      <div className="flex items-center gap-2">
+                        <User className="w-4 h-4" />
+                        <span className="font-medium text-foreground">From:</span> {selectedSourceEmail.sender}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Calendar className="w-4 h-4" />
+                        <span className="font-medium text-foreground">Date:</span> {new Date(selectedSourceEmail.internalDate || selectedSourceEmail.createdAt).toLocaleString()}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="p-5 rounded-[12px] border border-border bg-background shadow-inner text-[13px] leading-relaxed whitespace-pre-wrap max-h-96 overflow-y-auto custom-scrollbar">
+                    {selectedSourceEmail.body}
+                  </div>
+
+                  {selectedSourceEmail.summary && (
+                    <Card className="border border-border bg-secondary/30 rounded-[12px] shadow-none">
+                      <CardContent className="p-4 text-[13px] leading-relaxed text-foreground/80">
+                        <span className="font-bold text-[10px] uppercase tracking-wider text-foreground block mb-2 flex items-center gap-1.5">
+                          <Sparkles className="w-3.5 h-3.5" /> AI Summary
+                        </span>
+                        {selectedSourceEmail.summary}
+                      </CardContent>
+                    </Card>
+                  )}
+
+                  <div className="pt-4 border-t border-border/50">
+                    <Button
+                      onClick={() => {
+                        window.location.href = `/dashboard?category=${selectedSourceEmail.category || 'Professional'}`;
+                      }}
+                      variant="secondary"
+                      className="w-full text-[13px] font-semibold h-11 flex items-center justify-center gap-2 border border-border/80 shadow-sm"
+                    >
+                      <ExternalLink className="w-4 h-4" />
+                      <span>Open Thread in Inbox</span>
+                    </Button>
                   </div>
                 </div>
               )}
             </div>
-          )}
-          <div ref={messagesEndRef} />
-        </div>
-
-        {/* Input Form Box */}
-        <form onSubmit={handleQuerySend} className="p-4 border-t border-border bg-card/25 flex gap-2">
-          <Input
-            placeholder="Search and ask questions..."
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            disabled={askMutation.isPending}
-            className="text-xs bg-background border-border py-5 rounded-xl flex-1"
-          />
-          <Button
-            type="submit"
-            disabled={askMutation.isPending || !query.trim()}
-            className="px-5 bg-foreground text-background hover:bg-foreground/90 font-bold rounded-xl flex items-center gap-2 cursor-pointer h-auto text-xs"
-          >
-            <Send className="w-3.5 h-3.5" />
-            <span>Ask</span>
-          </Button>
-        </form>
-      </div>
-
-      {/* Pane 3: Interactive Citations Preview Panel */}
-      {selectedSourceEmail && (
-        <div className="w-96 border-l border-border flex flex-col h-full bg-card/15 min-w-[24rem]">
-          <div className="p-4 border-b border-border flex justify-between items-center">
-            <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-              <FileText className="w-4 h-4 text-primary" /> Cited Source Context
-            </span>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setSelectedSourceEmail(null)}
-              className="text-[10px] px-2"
-            >
-              Close
-            </Button>
-          </div>
-
-          <div className="flex-1 overflow-y-auto p-4 space-y-4">
-            {fetchingSourceEmail ? (
-              <div className="p-8 text-center text-xs text-muted-foreground flex flex-col items-center gap-2">
-                <RefreshCw className="w-5 h-5 animate-spin text-primary" />
-                <span>Loading full email content...</span>
-              </div>
-            ) : (
-              <div className="space-y-4">
-                <div className="space-y-2">
-                  <h3 className="text-sm font-bold leading-tight">{selectedSourceEmail.subject}</h3>
-                  <div className="space-y-1 text-[11px] text-muted-foreground">
-                    <div className="flex items-center gap-1.5">
-                      <User className="w-3.5 h-3.5 text-foreground/75" />
-                      <span>From: {selectedSourceEmail.sender}</span>
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                      <Calendar className="w-3.5 h-3.5 text-foreground/75" />
-                      <span>Date: {new Date(selectedSourceEmail.internalDate || selectedSourceEmail.createdAt).toLocaleString()}</span>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="p-3.5 rounded-xl border border-border bg-background text-[11px] leading-relaxed whitespace-pre-wrap max-h-96 overflow-y-auto">
-                  {selectedSourceEmail.body}
-                </div>
-
-                {selectedSourceEmail.summary && (
-                  <Card className="border border-primary/20 bg-primary/5 rounded-xl">
-                    <CardContent className="p-3 text-[11px] leading-relaxed text-muted-foreground">
-                      <span className="font-bold text-[9px] uppercase tracking-wider text-primary block mb-1">
-                        AI Ingestion Summary
-                      </span>
-                      {selectedSourceEmail.summary}
-                    </CardContent>
-                  </Card>
-                )}
-
-                <div className="pt-2">
-                  <Button
-                    onClick={() => {
-                      window.location.href = `/dashboard?category=${selectedSourceEmail.category || 'Professional'}`;
-                    }}
-                    variant="outline"
-                    className="w-full text-xs font-semibold py-2 flex items-center justify-center gap-2 border-border/80 cursor-pointer"
-                  >
-                    <ExternalLink className="w-3.5 h-3.5" />
-                    <span>Open Thread in Inbox</span>
-                  </Button>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

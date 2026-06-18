@@ -19,6 +19,12 @@ export type Theme = 'light' | 'dark';
 
 export type SyncStatus = 'idle' | 'synced' | 'error';
 
+export interface SyncProgress {
+  total?: number;
+  processed?: number;
+  statusMessage?: string;
+}
+
 /* ──────────────────────────────────────────────
  * Store Interface
  * ────────────────────────────────────────────── */
@@ -37,6 +43,7 @@ interface AppState {
   syncing: boolean;
   syncStatus: SyncStatus;
   lastSynced: string | null;
+  syncProgress: SyncProgress | null;
 
   // ── User Actions ──
   setUser: (user: UserProfile | null, isGmailLinked: boolean, gmailEmail: string | null) => void;
@@ -51,6 +58,7 @@ interface AppState {
   setSyncing: (syncing: boolean) => void;
   setSyncStatus: (syncStatus: SyncStatus) => void;
   setLastSynced: (lastSynced: string | null) => void;
+  setSyncProgress: (progress: SyncProgress | null) => void;
   fetchSyncStatus: () => Promise<void>;
   triggerSync: (limit?: number) => Promise<void>;
 }
@@ -97,6 +105,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   syncing: false,
   syncStatus: 'idle',
   lastSynced: null,
+  syncProgress: null,
 
   // ── User Actions ──
 
@@ -158,6 +167,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   setSyncing: (syncing) => set({ syncing }),
   setSyncStatus: (syncStatus) => set({ syncStatus }),
   setLastSynced: (lastSynced) => set({ lastSynced }),
+  setSyncProgress: (syncProgress) => set({ syncProgress }),
 
   /** Fetch the current sync status from the backend */
   fetchSyncStatus: async () => {
@@ -167,6 +177,19 @@ export const useAppStore = create<AppState>((set, get) => ({
       // Update syncing state if it changed
       if (data.syncing !== undefined && data.syncing !== get().syncing) {
         set({ syncing: data.syncing });
+      }
+
+      // Update progress
+      if (data.syncing) {
+        set({ 
+          syncProgress: { 
+            total: data.total, 
+            processed: data.processed, 
+            statusMessage: data.statusMessage 
+          } 
+        });
+      } else {
+        set({ syncProgress: null });
       }
 
       if (data.lastSyncedAt) {
@@ -185,7 +208,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     // If already syncing, don't start another poll
     if (get().syncing) return;
     
-    set({ syncing: true });
+    set({ syncing: true, syncProgress: null });
     try {
       await api.post('/api/sync/trigger', { limit });
       toast.info('Sync started in the background. You can continue using the app.');
@@ -200,6 +223,7 @@ export const useAppStore = create<AppState>((set, get) => ({
           set({
             syncStatus: 'synced',
             lastSynced: new Date().toLocaleString(),
+            syncProgress: null,
           });
           toast.success('Inbox sync complete!');
           
@@ -211,7 +235,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       
     } catch (e) {
       console.error('Manual sync failed:', e);
-      set({ syncStatus: 'error', syncing: false });
+      set({ syncStatus: 'error', syncing: false, syncProgress: null });
     }
   },
 }));

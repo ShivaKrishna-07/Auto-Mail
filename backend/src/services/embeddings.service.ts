@@ -1,10 +1,8 @@
 import { GoogleGenAI } from '@google/genai';
 import { ENV } from '../config/env';
+import { withGeminiFallback } from '../utils/gemini.util';
 
 class EmbeddingsService {
-  private getAIClient() {
-    return new GoogleGenAI({ apiKey: ENV.GEMINI_API_KEY });
-  }
 
   async generateEmbedding(text: string): Promise<number[]> {
     const cleanText = text?.trim();
@@ -14,19 +12,25 @@ class EmbeddingsService {
     }
 
     try {
-      const ai = this.getAIClient();
-      const response = await ai.models.embedContent({
-        model: 'text-embedding-004',
+      const response = await withGeminiFallback(ai => ai.models.embedContent({
+        model: 'gemini-embedding-2',
         contents: cleanText,
-      });
+        config: {
+          outputDimensionality: 768,
+        },
+      }));
 
       if (!response.embeddings || !response.embeddings[0] || !response.embeddings[0].values) {
         throw new Error('Failed to generate embedding: empty values returned from Gemini API');
       }
 
       return response.embeddings[0].values;
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error in EmbeddingsService.generateEmbedding:', error);
+      const errorStr = String(error.message || error);
+      if (errorStr.includes('429') || errorStr.includes('quota') || errorStr.includes('RESOURCE_EXHAUSTED')) {
+        throw new Error('Gemini API quota exceeded. Please try again later.');
+      }
       throw error;
     }
   }

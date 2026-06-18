@@ -1,12 +1,19 @@
 import { Response } from 'express';
 import { AuthenticatedRequest } from '../middleware/auth.middleware';
-import { gmailService } from '../services/gmail.service';
+import { gmailService, SyncProgressData } from '../services/gmail.service';
 import { db } from '../db/connection';
 import { gmailAccounts as gmailAccountsTable } from '../db/schema';
 import { eq } from 'drizzle-orm';
 
+export interface SyncProgressState {
+  syncing: boolean;
+  total?: number;
+  processed?: number;
+  statusMessage?: string;
+}
+
 // Simple in-memory state for tracking background syncs
-const activeSyncs = new Map<string, boolean>();
+const activeSyncs = new Map<string, SyncProgressState>();
 
 class SyncController {
   async triggerSync(req: AuthenticatedRequest, res: Response) {
@@ -15,7 +22,7 @@ class SyncController {
       return res.status(401).json({ error: 'Unauthorized.' });
     }
 
-    if (activeSyncs.get(userId)) {
+    if (activeSyncs.get(userId)?.syncing) {
       return res.status(409).json({ error: 'A sync process is already running.', status: 'already_syncing' });
     }
 
@@ -25,10 +32,18 @@ class SyncController {
       console.log(`Sync pipeline initiated for user: ${userId}, limit: ${limit}`);
       
       // Mark as syncing
-      activeSyncs.set(userId, true);
+      activeSyncs.set(userId, { syncing: true, statusMessage: 'Starting sync...' });
 
-      // Start background process
-      gmailService.syncEmails(userId, limit)
+      // Start background process with progress callback
+      gmailService.syncEmails(userId, limit, (progress: SyncProgressData) => {
+        // Update the active syncs map with progress
+        activeSyncs.set(userId, {
+          syncing: true,
+          total: progress.total,
+          processed: progress.processed,
+          statusMessage: progress.status,
+        });
+      })
         .then((result) => {
           console.log(`Sync completed for ${userId}:`, result);
         })
@@ -64,11 +79,16 @@ class SyncController {
         return res.status(404).json({ error: 'Gmail account not linked.' });
       }
 
+      const activeSync = activeSyncs.get(userId);
+
       return res.json({
         email: account.email,
         historyId: account.historyId,
         lastSyncedAt: account.updatedAt,
-        syncing: activeSyncs.get(userId) || false,
+        syncing: activeSync?.syncing || false,
+        total: activeSync?.total,
+        processed: activeSync?.processed,
+        statusMessage: activeSync?.statusMessage,
       });
     } catch (error: any) {
       console.error('Error fetching sync status:', error);

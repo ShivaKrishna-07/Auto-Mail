@@ -7,6 +7,14 @@ import { aiService } from './ai.service';
 import { embeddingsService } from './embeddings.service';
 import { cleanHtml, getHeader } from '../utils/parser';
 
+export interface SyncProgressData {
+  total: number;
+  processed: number;
+  status: string;
+}
+
+export type SyncProgressCallback = (progress: SyncProgressData) => void;
+
 class GmailService {
   /**
    * Recursive helper to extract text and html body from message payload parts.
@@ -41,8 +49,9 @@ class GmailService {
    * Syncs emails for a user. Supports initial sync and incremental sync.
    * @param userId The app user ID
    * @param maxSyncLimit Maximum messages to sync in this request (default 50)
+   * @param onProgress Optional callback for progress updates
    */
-  async syncEmails(userId: string, maxSyncLimit = 50): Promise<{ syncedCount: number; status: string }> {
+  async syncEmails(userId: string, maxSyncLimit = 50, onProgress?: SyncProgressCallback): Promise<{ syncedCount: number; status: string }> {
     const client = await authService.getValidClient(userId);
     const gmail = google.gmail({ version: 'v1', auth: client });
 
@@ -84,7 +93,8 @@ class GmailService {
             syncedCount = await this.fetchAndProcessMessages(
               userId,
               gmail,
-              Array.from(messageIdsToFetch).slice(0, maxSyncLimit)
+              Array.from(messageIdsToFetch).slice(0, maxSyncLimit),
+              onProgress
             );
           }
 
@@ -140,7 +150,7 @@ class GmailService {
 
       // Process fetched messages
       if (allMessageIds.length > 0) {
-        syncedCount = await this.fetchAndProcessMessages(userId, gmail, allMessageIds);
+        syncedCount = await this.fetchAndProcessMessages(userId, gmail, allMessageIds, onProgress);
       }
 
       // Save latest historyId from Gmail Profile
@@ -166,10 +176,14 @@ class GmailService {
   private async fetchAndProcessMessages(
     userId: string,
     gmail: gmail_v1.Gmail,
-    messageIds: string[]
+    messageIds: string[],
+    onProgress?: SyncProgressCallback
   ): Promise<number> {
     let processed = 0;
+    const total = messageIds.length;
     const threadIdsToUpdate = new Set<string>();
+    
+    if (onProgress) onProgress({ total, processed, status: 'Fetching and analyzing emails...' });
 
     for (const messageId of messageIds) {
       try {
@@ -269,12 +283,17 @@ class GmailService {
 
         threadIdsToUpdate.add(msg.threadId);
         processed++;
+        
+        if (onProgress) onProgress({ total, processed, status: 'Fetching and analyzing emails...' });
       } catch (msgError) {
         console.error(`Error processing message ${messageId}:`, msgError);
       }
     }
 
     // 4. Update Thread Summaries & Embeddings for modified threads
+    if (threadIdsToUpdate.size > 0 && onProgress) {
+      onProgress({ total, processed, status: 'Summarizing threads...' });
+    }
     for (const threadId of threadIdsToUpdate) {
       try {
         const threadEmails = await db.query.emails.findMany({

@@ -1,24 +1,21 @@
 import { GoogleGenAI } from '@google/genai';
 import { ENV } from '../config/env';
+import { withGeminiFallback } from '../utils/gemini.util';
 
 class AIService {
-  private getAIClient() {
-    return new GoogleGenAI({ apiKey: ENV.GEMINI_API_KEY });
-  }
 
   async summarizeEmail(body: string): Promise<string> {
     const cleanBody = body?.trim();
     if (!cleanBody) return 'Empty email content.';
     
     try {
-      const ai = this.getAIClient();
-      const response = await ai.models.generateContent({
+      const response = await withGeminiFallback(ai => ai.models.generateContent({
         model: 'gemini-2.5-flash',
         contents: `Summarize the following email in 1 to 2 concise, clear sentences. Focus on the core request or message. Avoid greeting/sign-off references.
         
 Email Content:
 ${cleanBody.substring(0, 10000)}`,
-      });
+      }));
       return response.text?.trim() || 'Summary unavailable.';
     } catch (error) {
       console.error('Error in AIService.summarizeEmail:', error);
@@ -29,8 +26,7 @@ ${cleanBody.substring(0, 10000)}`,
   async categorizeEmail(subject: string, body: string): Promise<string> {
     const textToClassify = `Subject: ${subject || '(No Subject)'}\n\nBody:\n${body || ''}`.substring(0, 8000);
     try {
-      const ai = this.getAIClient();
-      const response = await ai.models.generateContent({
+      const response = await withGeminiFallback(ai => ai.models.generateContent({
         model: 'gemini-2.5-flash',
         contents: `You are an expert email classification system.
 Classify the email below into exactly ONE of these categories:
@@ -45,7 +41,7 @@ Return ONLY the single category name from the list above. Do not include markdow
 
 Email:
 ${textToClassify}`,
-      });
+      }));
 
       const category = response.text?.trim() || 'Professional';
       const validCategories = ['Newsletter', 'Finance', 'Job', 'Notification', 'Personal', 'Professional'];
@@ -70,8 +66,7 @@ ${textToClassify}`,
       .join('\n\n---\n\n');
 
     try {
-      const ai = this.getAIClient();
-      const response = await ai.models.generateContent({
+      const response = await withGeminiFallback(ai => ai.models.generateContent({
         model: 'gemini-2.5-flash',
         contents: `You are an assistant summarizing a Gmail conversation thread containing ${messages.length} messages.
 Draft a concise summary summarizing the timeline of discussion, main topics discussed, key resolutions, and any pending actions/next steps.
@@ -79,7 +74,7 @@ Keep the summary professional, clear, and strictly under 150 words. Do not use g
 
 Thread Messages:
 ${formattedMessages}`,
-      });
+      }));
       return response.text?.trim() || 'Thread summary unavailable.';
     } catch (error) {
       console.error('Error in AIService.summarizeThread:', error);
@@ -89,8 +84,7 @@ ${formattedMessages}`,
 
   async draftEmail(instructions: string, userContext: string): Promise<string> {
     try {
-      const ai = this.getAIClient();
-      const response = await ai.models.generateContent({
+      const response = await withGeminiFallback(ai => ai.models.generateContent({
         model: 'gemini-2.5-flash',
         contents: `You are a high-level executive assistant. Draft a professional email based on the following instructions and context.
 Provide a clean draft with a Subject line and an Email Body. Put brackets around placeholder details where the user needs to fill in their own info.
@@ -106,7 +100,7 @@ Subject: [Draft Subject]
 
 Dear [Name],
 [Draft Body]`,
-      });
+      }));
       return response.text?.trim() || '';
     } catch (error) {
       console.error('Error in AIService.draftEmail:', error);
@@ -116,8 +110,7 @@ Dear [Name],
 
   async draftReply(threadSummary: string, lastEmailBody: string, userPrompt: string): Promise<string> {
     try {
-      const ai = this.getAIClient();
-      const response = await ai.models.generateContent({
+      const response = await withGeminiFallback(ai => ai.models.generateContent({
         model: 'gemini-2.5-flash',
         contents: `You are drafting a professional reply to the last message of an email conversation thread.
 
@@ -131,7 +124,7 @@ User's response directives:
 ${userPrompt}
 
 Draft a context-aware email reply. Respond with ONLY the reply body text. Do not include a subject line or greeting/closing placeholders if they are not part of the message body. Keep it direct and natural.`,
-      });
+      }));
       return response.text?.trim() || '';
     } catch (error) {
       console.error('Error in AIService.draftReply:', error);

@@ -12,6 +12,10 @@ export const ENV = {
   GOOGLE_CLIENT_SECRET: process.env.GOOGLE_CLIENT_SECRET || '',
   GOOGLE_REDIRECT_URI: process.env.GOOGLE_REDIRECT_URI || 'http://localhost:5000/api/auth/google/callback',
   GEMINI_API_KEY: process.env.GEMINI_API_KEY || '',
+  GEMINI_API_KEYS: (process.env.GEMINI_API_KEYS || process.env.GEMINI_API_KEY || '')
+    .split(',')
+    .map(k => k.trim())
+    .filter(k => k.length > 0),
   DATABASE_URL: process.env.DATABASE_URL || '',
   JWT_SECRET: process.env.JWT_SECRET || 'fallback-secret-for-jwt-development-mode',
 };

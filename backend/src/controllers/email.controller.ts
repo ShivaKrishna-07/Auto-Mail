@@ -2,7 +2,7 @@ import { Response } from 'express';
 import { AuthenticatedRequest } from '../middleware/auth.middleware';
 import { db } from '../db/connection';
 import { threads as threadsTable, emails as emailsTable } from '../db/schema';
-import { eq, and, desc, inArray } from 'drizzle-orm';
+import { eq, and, desc, inArray, sql } from 'drizzle-orm';
 import { aiService } from '../services/ai.service';
 import { gmailService } from '../services/gmail.service';
 
@@ -12,9 +12,13 @@ class EmailController {
     if (!userId) return res.status(401).json({ error: 'Unauthorized.' });
 
     const category = req.query.category as string | undefined;
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 50;
+    const offset = (page - 1) * limit;
 
     try {
       let threadsList = [];
+      let total = 0;
 
       if (category) {
         // Find email threadIds for this user and category
@@ -25,21 +29,35 @@ class EmailController {
         const threadIds = Array.from(new Set(matchingEmails.map(e => e.threadId)));
         
         if (threadIds.length === 0) {
-          return res.json([]);
+          return res.json({ data: [], total: 0, page, limit });
         }
+
+        const totalRes = await db.select({ count: sql<number>`count(*)` })
+          .from(threadsTable)
+          .where(and(eq(threadsTable.userId, userId), inArray(threadsTable.id, threadIds)));
+        total = Number(totalRes[0].count);
 
         threadsList = await db.query.threads.findMany({
           where: and(eq(threadsTable.userId, userId), inArray(threadsTable.id, threadIds)),
           orderBy: [desc(threadsTable.lastMessageDate)],
+          limit,
+          offset,
         });
       } else {
+        const totalRes = await db.select({ count: sql<number>`count(*)` })
+          .from(threadsTable)
+          .where(eq(threadsTable.userId, userId));
+        total = Number(totalRes[0].count);
+
         threadsList = await db.query.threads.findMany({
           where: eq(threadsTable.userId, userId),
           orderBy: [desc(threadsTable.lastMessageDate)],
+          limit,
+          offset,
         });
       }
 
-      return res.json(threadsList);
+      return res.json({ data: threadsList, total, page, limit });
     } catch (error: any) {
       console.error('Error fetching threads:', error);
       return res.status(500).json({ error: error.message || 'Failed to fetch threads.' });

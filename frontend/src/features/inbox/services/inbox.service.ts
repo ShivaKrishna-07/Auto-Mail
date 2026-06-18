@@ -1,8 +1,11 @@
 import { api } from '@/lib/api';
 
 export const inboxService = {
-  async getThreads(category?: string): Promise<any[]> {
-    const url = category ? `/api/emails/threads?category=${category}` : '/api/emails/threads';
+  async getThreads(category?: string, page: number = 1, limit: number = 50): Promise<any> {
+    let url = `/api/emails/threads?page=${page}&limit=${limit}`;
+    if (category) {
+      url += `&category=${category}`;
+    }
     return api.get(url);
   },
 

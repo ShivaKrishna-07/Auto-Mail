@@ -4,11 +4,9 @@ import { emails as emailsTable, threads as threadsTable } from '../db/schema';
 import { embeddingsService } from './embeddings.service';
 import { GoogleGenAI } from '@google/genai';
 import { ENV } from '../config/env';
+import { withGeminiFallback } from '../utils/gemini.util';
 
 class RAGService {
-  private getAIClient() {
-    return new GoogleGenAI({ apiKey: ENV.GEMINI_API_KEY });
-  }
 
   /**
    * Search emails using vector similarity.
@@ -16,10 +14,11 @@ class RAGService {
   async searchEmails(userId: string, query: string, limit = 5): Promise<any[]> {
     try {
       const queryEmbedding = await embeddingsService.generateEmbedding(query);
+      const formattedEmbedding = JSON.stringify(queryEmbedding);
       
       // SQL expression for cosine similarity: 1 - (embedding <=> queryEmbedding)
       // <=> represents cosine distance in pgvector
-      const similaritySql = sql<number>`1 - (${emailsTable.embedding} <=> ${queryEmbedding})`;
+      const similaritySql = sql<number>`1 - (${emailsTable.embedding} <=> ${formattedEmbedding}::vector)`;
 
       const results = await db
         .select({
@@ -36,7 +35,7 @@ class RAGService {
         })
         .from(emailsTable)
         .where(eq(emailsTable.userId, userId))
-        .orderBy(sql`${emailsTable.embedding} <=> ${queryEmbedding}`)
+        .orderBy(sql`${emailsTable.embedding} <=> ${formattedEmbedding}::vector`)
         .limit(limit);
 
       return results;
@@ -97,11 +96,10 @@ Instructions:
 Answer:`;
 
       // 4. Generate Answer using Gemini
-      const ai = this.getAIClient();
-      const response = await ai.models.generateContent({
+      const response = await withGeminiFallback(ai => ai.models.generateContent({
         model: 'gemini-2.5-flash',
         contents: prompt,
-      });
+      }));
 
       const answer = response.text?.trim() || 'No answer generated.';
 
@@ -119,8 +117,12 @@ Answer:`;
         answer,
         sources,
       };
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error in RAGService.answerQuery:', error);
+      const errorStr = String(error.message || error);
+      if (errorStr.includes('429') || errorStr.includes('quota') || errorStr.includes('RESOURCE_EXHAUSTED')) {
+        throw new Error('Gemini API quota exceeded. Please try again later.');
+      }
       throw error;
     }
   }
