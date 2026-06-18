@@ -2,6 +2,8 @@ import { create } from 'zustand';
 import { authService } from '@/features/auth/services/auth.service';
 import { api } from '@/lib/api';
 
+import { toast } from 'sonner';
+
 /* ──────────────────────────────────────────────
  * Types
  * ────────────────────────────────────────────── */
@@ -161,6 +163,12 @@ export const useAppStore = create<AppState>((set, get) => ({
   fetchSyncStatus: async () => {
     try {
       const data = await api.get('/api/sync/status');
+      
+      // Update syncing state if it changed
+      if (data.syncing !== undefined && data.syncing !== get().syncing) {
+        set({ syncing: data.syncing });
+      }
+
       if (data.lastSyncedAt) {
         set({
           syncStatus: 'synced',
@@ -172,20 +180,35 @@ export const useAppStore = create<AppState>((set, get) => ({
     }
   },
 
-  /** Trigger an inbox sync and update global sync state */
+  /** Trigger an inbox sync and start polling global sync state */
   triggerSync: async (limit = 40) => {
+    // If already syncing, don't start another poll
+    if (get().syncing) return;
+    
     set({ syncing: true });
     try {
       await api.post('/api/sync/trigger', { limit });
-      set({
-        syncStatus: 'synced',
-        lastSynced: new Date().toLocaleString(),
-        syncing: false,
-      });
-      // Dispatch custom event so pages can react (e.g. invalidate queries)
-      if (typeof window !== 'undefined') {
-        window.dispatchEvent(new Event('automail-synced'));
-      }
+      toast.info('Sync started in the background. You can continue using the app.');
+      
+      // Start Polling
+      const pollInterval = setInterval(async () => {
+        await get().fetchSyncStatus();
+        
+        // If syncing finished, stop polling
+        if (!get().syncing) {
+          clearInterval(pollInterval);
+          set({
+            syncStatus: 'synced',
+            lastSynced: new Date().toLocaleString(),
+          });
+          toast.success('Inbox sync complete!');
+          
+          if (typeof window !== 'undefined') {
+            window.dispatchEvent(new Event('automail-synced'));
+          }
+        }
+      }, 3000); // Poll every 3 seconds
+      
     } catch (e) {
       console.error('Manual sync failed:', e);
       set({ syncStatus: 'error', syncing: false });

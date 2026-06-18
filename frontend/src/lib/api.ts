@@ -1,4 +1,7 @@
+import { toast } from 'sonner';
+
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
+const DEFAULT_TIMEOUT_MS = 15000; // 15 seconds
 
 class ApiClient {
   private getHeaders(): HeadersInit {
@@ -21,7 +24,6 @@ class ApiClient {
       if (typeof window !== 'undefined') {
         localStorage.removeItem('gmail_auth_token');
         localStorage.removeItem('gmail_user_data');
-        // Avoid redirect loop if already on login page
         if (window.location.pathname !== '/') {
           window.location.href = '/';
         }
@@ -36,21 +38,47 @@ class ApiClient {
     return data;
   }
 
+  private async fetchWithTimeout(endpoint: string, options: RequestInit = {}) {
+    const controller = new AbortController();
+    const id = setTimeout(() => controller.abort(), DEFAULT_TIMEOUT_MS);
+    
+    try {
+      const response = await fetch(`${API_URL}${endpoint}`, {
+        ...options,
+        signal: controller.signal,
+      });
+      clearTimeout(id);
+      return await this.handleResponse(response);
+    } catch (error: any) {
+      clearTimeout(id);
+      let errorMessage = error.message;
+      
+      if (error.name === 'AbortError') {
+        errorMessage = 'Request timed out. The server took too long to respond.';
+      }
+      
+      // Global error toast interceptor
+      if (errorMessage !== 'Unauthorized') {
+        toast.error(errorMessage);
+      }
+      
+      throw error;
+    }
+  }
+
   async get(endpoint: string) {
-    const response = await fetch(`${API_URL}${endpoint}`, {
+    return this.fetchWithTimeout(endpoint, {
       method: 'GET',
       headers: this.getHeaders(),
     });
-    return this.handleResponse(response);
   }
 
   async post(endpoint: string, body?: any) {
-    const response = await fetch(`${API_URL}${endpoint}`, {
+    return this.fetchWithTimeout(endpoint, {
       method: 'POST',
       headers: this.getHeaders(),
       body: body ? JSON.stringify(body) : undefined,
     });
-    return this.handleResponse(response);
   }
 }
 
