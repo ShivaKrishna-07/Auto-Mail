@@ -24,8 +24,8 @@ class ApiClient {
       if (typeof window !== 'undefined') {
         localStorage.removeItem('gmail_auth_token');
         localStorage.removeItem('gmail_user_data');
-        if (window.location.pathname !== '/') {
-          window.location.href = '/';
+        if (window.location.pathname !== '/login') {
+          window.location.href = '/login';
         }
       }
       throw new Error('Unauthorized');

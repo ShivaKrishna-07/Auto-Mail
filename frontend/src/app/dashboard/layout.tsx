@@ -17,7 +17,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   useEffect(() => {
     // Redirect if session loading is complete and no user profile is found
     if (!loadingSession && !user) {
-      router.push('/');
+      router.push('/login');
     }
   }, [loadingSession, user, router]);
 

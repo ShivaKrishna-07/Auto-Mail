@@ -143,7 +143,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     if (typeof window !== 'undefined') {
       localStorage.removeItem('gmail_auth_token');
       localStorage.removeItem('gmail_user_data');
-      window.location.href = '/';
+      window.location.href = '/login';
     }
     set({ user: null, isGmailLinked: false, gmailEmail: null, loadingSession: false });
   },

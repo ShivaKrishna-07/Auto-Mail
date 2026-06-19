@@ -80,7 +80,7 @@ function GoogleCallbackContent() {
               {errorMessage}
             </p>
             <button
-              onClick={() => router.push('/')}
+              onClick={() => router.push('/login')}
               className="mt-2 px-4 py-2 text-xs font-semibold rounded-lg bg-foreground text-background hover:bg-foreground/90 transition-all cursor-pointer"
             >
               Go Back to Sign In

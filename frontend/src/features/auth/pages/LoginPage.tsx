@@ -6,8 +6,9 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useAuth } from '../hooks/useAuth';
 import { useTheme } from '@/hooks/useTheme';
-import { Mail, Sparkles, Shield, RefreshCw, Sun, Moon, PlayCircle } from 'lucide-react';
+import { Mail, Sparkles, Shield, RefreshCw, Sun, Moon, ArrowLeft } from 'lucide-react';
 import Link from 'next/link';
+import { Logo } from '@/components/Logo';
 
 export function LoginPage() {
   const [loading, setLoading] = useState(false);
@@ -53,7 +54,20 @@ export function LoginPage() {
     <div className="relative min-h-screen flex items-center justify-center bg-background text-foreground overflow-hidden transition-colors duration-300">
       {/* Decorative Gradient Background Elements Removed */}
 
-      {/* Theme Switcher Header */}
+      {/* Top Actions: Back Button & Theme Switcher */}
+      <div className="absolute top-6 left-6">
+        <Link href="/">
+          <Button 
+            variant="ghost" 
+            size="sm" 
+            className="rounded-[8px] px-3 bg-card/30 border border-border/50 hover:bg-muted text-muted-foreground hover:text-foreground"
+          >
+            <ArrowLeft className="w-3.5 h-3.5 mr-2" />
+            Back
+          </Button>
+        </Link>
+      </div>
+
       <div className="absolute top-6 right-6">
         <Button 
           variant="ghost" 
@@ -67,11 +81,8 @@ export function LoginPage() {
       </div>
 
       <div className="w-full max-w-lg p-6 relative z-10">
-        <div className="text-center mb-8">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-border bg-card/50 backdrop-blur-sm text-xs font-medium text-foreground mb-3">
-            <Sparkles className="w-3.5 h-3.5 text-muted-foreground" />
-            Smart Email Assistant
-          </div>
+        <div className="text-center mb-8 flex flex-col items-center">
+          <Logo size="xl" className="mb-6 shadow-xl shadow-primary/10" />
           <h1 className="text-4xl font-extrabold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-foreground via-foreground/90 to-muted-foreground mb-2">
             Auto Mail
           </h1>
@@ -129,35 +140,6 @@ export function LoginPage() {
               </div>
             )}
 
-            <div className="flex justify-center mt-2 mb-2">
-              <Link href="/demo">
-                <Button variant="ghost" className="text-muted-foreground hover:text-primary text-[12px] h-8 px-3 gap-2 rounded-full border border-transparent hover:border-border/50">
-                  <PlayCircle className="w-3.5 h-3.5" />
-                  Watch Demo Video
-                </Button>
-              </Link>
-            </div>
-
-            <div className="border-t border-border pt-5 grid grid-cols-3 gap-4 text-center text-[10px] text-muted-foreground">
-              <div className="flex flex-col items-center gap-1.5">
-                <div className="p-2 rounded-full border border-border bg-card/40">
-                  <Mail className="w-4 h-4 text-foreground/80" />
-                </div>
-                <span>Workspace Sync</span>
-              </div>
-              <div className="flex flex-col items-center gap-1.5">
-                <div className="p-2 rounded-full border border-border bg-card/40">
-                  <Sparkles className="w-4 h-4 text-foreground/80" />
-                </div>
-                <span>Smart AI Chat</span>
-              </div>
-              <div className="flex flex-col items-center gap-1.5">
-                <div className="p-2 rounded-full border border-border bg-card/40">
-                  <Shield className="w-4 h-4 text-foreground/80" />
-                </div>
-                <span>Secure Sandbox</span>
-              </div>
-            </div>
           </CardContent>
         </Card>
 

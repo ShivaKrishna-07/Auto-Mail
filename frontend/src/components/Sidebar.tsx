@@ -22,6 +22,7 @@ import {
   PlayCircle
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { Logo } from '@/components/Logo';
 
 export function Sidebar() {
   const router = useRouter();
@@ -54,7 +55,7 @@ export function Sidebar() {
 
   const activeCategory = searchParams.get('category');
   const syncStatusLabel = syncStatus === 'synced' ? 'Up to date' : syncStatus === 'error' ? 'Error' : 'Needs Update';
-  const syncStatusColor = syncStatus === 'synced' ? 'bg-[#10B981]' : syncStatus === 'error' ? 'bg-destructive' : 'bg-yellow-500';
+  const syncStatusColor = syncStatus === 'synced' ? 'bg-green-500' : syncStatus === 'error' ? 'bg-destructive' : 'bg-yellow-500';
 
   const categories = [
     { name: 'Professional' },
@@ -69,9 +70,7 @@ export function Sidebar() {
     <aside className="w-[270px] border-r border-border bg-sidebar text-sidebar-foreground flex flex-col h-screen shrink-0">
       {/* Brand Header */}
       <div className="h-16 flex items-center px-6 gap-3 shrink-0">
-        <div className="w-7 h-7 rounded-[8px] bg-foreground text-background flex items-center justify-center font-bold text-[14px]">
-          A
-        </div>
+        <Logo size="md" />
         <div className="flex flex-col">
           <span className="font-semibold text-[15px] leading-tight text-foreground">Auto Mail</span>
         </div>
