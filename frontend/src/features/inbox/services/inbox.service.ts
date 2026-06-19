@@ -32,7 +32,18 @@ export const inboxService = {
     return api.post(`/api/emails/threads/${threadId}/summarize`);
   },
 
-  async categorizeThread(threadId: string): Promise<{ category: string }> {
-    return api.post(`/api/emails/threads/${threadId}/categorize`);
+  async categorizeThread(threadId: string): Promise<{ success: boolean; category: string }> {
+    const res = await api.post(`/api/emails/thread/${threadId}/categorize`);
+    return res.data;
   },
+
+  async getUncategorizedCount(): Promise<number> {
+    const res = await api.get('/api/emails/uncategorized-count');
+    return res.data.count;
+  },
+
+  async categorizeAll(): Promise<{ categorizedCount: number }> {
+    const res = await api.post('/api/emails/categorize-all');
+    return res.data;
+  }
 };

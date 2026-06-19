@@ -11,5 +11,7 @@ router.post('/send', authMiddleware, (req, res) => emailController.sendNewEmail(
 router.post('/reply', authMiddleware, (req, res) => emailController.sendReply(req, res));
 router.post('/threads/:threadId/summarize', authMiddleware, (req, res) => emailController.summarizeThread(req, res));
 router.post('/threads/:threadId/categorize', authMiddleware, (req, res) => emailController.categorizeThread(req, res));
+router.get('/uncategorized-count', authMiddleware, (req, res) => emailController.getUncategorizedCount(req, res));
+router.post('/categorize-all', authMiddleware, (req, res) => emailController.categorizeAll(req, res));
 
 export default router;

@@ -5,7 +5,7 @@ import { useSearchParams, useRouter, usePathname, useParams } from 'next/navigat
 import { useQueryClient } from '@tanstack/react-query';
 import { useThreads } from '../hooks/useThreads';
 import { useThreadDetails } from '../hooks/useThreadDetails';
-import { useSendReplyMutation, useDraftReplyMutation, useSummarizeThreadMutation, useCategorizeThreadMutation } from '../hooks/useInboxMutations';
+import { useSendReplyMutation, useDraftReplyMutation, useSummarizeThreadMutation, useCategorizeThreadMutation, useCategorizeAllMutation, useUncategorizedCountQuery } from '../hooks/useInboxMutations';
 import { useAIErrorHandler } from '@/hooks/useAIErrorHandler';
 import { getCategoryColor } from '@/utils/category';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
@@ -83,12 +83,21 @@ export function InboxPage() {
   const draftReplyMutation = useDraftReplyMutation();
   const summarizeMutation = useSummarizeThreadMutation();
   const categorizeMutation = useCategorizeThreadMutation();
+  const categorizeAllMutation = useCategorizeAllMutation();
+  const { data: uncategorizedCount } = useUncategorizedCountQuery();
   const { handleAIError } = useAIErrorHandler();
 
   useEffect(() => {
     document.title = categoryFilter ? `${categoryFilter} - Auto Mail` : 'Inbox - Auto Mail';
     setCurrentPage(1);
-  }, [categoryFilter]);
+
+    // Auto-categorize trigger
+    if (categoryFilter && uncategorizedCount !== undefined && uncategorizedCount > 0 && !categorizeAllMutation.isPending) {
+      categorizeAllMutation.mutate(undefined, {
+        onError: (err) => handleAIError(err, 'Failed to categorize remaining emails.')
+      });
+    }
+  }, [categoryFilter, uncategorizedCount]);
 
   useEffect(() => {
     if (threads.length > 0 && !selectedThreadId && pathname === '/dashboard') {
@@ -144,6 +153,25 @@ export function InboxPage() {
       }
     );
   };
+
+  if (categorizeAllMutation.isPending && categoryFilter) {
+    return (
+      <div className="flex-1 flex flex-col items-center justify-center h-full bg-background relative z-50">
+        <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mb-6">
+          <Sparkles className="w-8 h-8 text-primary animate-pulse" />
+        </div>
+        <h2 className="text-[20px] font-bold text-foreground mb-2">Categorizing your inbox...</h2>
+        <p className="text-muted-foreground text-[14px]">
+          Our AI is organizing {uncategorizedCount} remaining emails.
+        </p>
+        <div className="mt-8 flex gap-2">
+          <div className="w-2 h-2 rounded-full bg-primary animate-bounce [animation-delay:-0.3s]"></div>
+          <div className="w-2 h-2 rounded-full bg-primary animate-bounce [animation-delay:-0.15s]"></div>
+          <div className="w-2 h-2 rounded-full bg-primary animate-bounce"></div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex-1 flex h-full min-w-0 bg-background overflow-hidden">
@@ -259,23 +287,7 @@ export function InboxPage() {
                   {details.thread.subject ? details.thread.subject.charAt(0).toUpperCase() + details.thread.subject.slice(1) : 'No Subject'}
                 </h1>
                 <div className="flex items-center gap-3 shrink-0">
-                  {(!details.emails[0]?.category || details.emails[0]?.category === 'Uncategorized') ? (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="h-8 text-[11px] px-2 shadow-none gap-1.5 border-dashed"
-                      onClick={() => categorizeMutation.mutate(details.thread.id, {
-                        onError: (err) => handleAIError(err, 'Failed to categorize thread')
-                      })}
-                      disabled={categorizeMutation.isPending}
-                    >
-                      {categorizeMutation.isPending ? (
-                        <><RefreshCw className="w-3 h-3 animate-spin" /> Categorizing...</>
-                      ) : (
-                        <><Tag className="w-3 h-3" /> Categorize</>
-                      )}
-                    </Button>
-                  ) : (
+                  {details.emails[0]?.category && details.emails[0]?.category !== 'Uncategorized' && (
                     <Badge className={getCategoryColor(details.emails[0]?.category) + " shrink-0 shadow-none px-2 h-6 text-[11px]"}>
                       {details.emails[0]?.category}
                     </Badge>
