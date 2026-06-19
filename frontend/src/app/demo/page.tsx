@@ -1,16 +1,18 @@
-import React from 'react';
-import { Button } from '@/components/ui/button';
-import { PlayCircle, ArrowLeft } from 'lucide-react';
-import Link from 'next/link';
+import React from "react";
+import { Button } from "@/components/ui/button";
+import { PlayCircle, ArrowLeft } from "lucide-react";
+import Link from "next/link";
 
 export default function DemoPage() {
   return (
     <div className="min-h-screen bg-background flex flex-col items-center py-20 px-6">
-      
       {/* Navigation */}
       <div className="w-full max-w-5xl mb-8 flex items-center justify-between">
         <Link href="/">
-          <Button variant="ghost" className="text-muted-foreground hover:text-foreground">
+          <Button
+            variant="ghost"
+            className="text-muted-foreground hover:text-foreground"
+          >
             <ArrowLeft className="w-4 h-4 mr-2" />
             Back to Home
           </Button>
@@ -27,17 +29,19 @@ export default function DemoPage() {
             See Auto Mail in Action
           </h1>
           <p className="text-lg text-muted-foreground max-w-2xl mx-auto leading-relaxed">
-            Discover how our AI-powered email assistant categorizes your inbox, generates brilliant drafts, and answers questions about your email history in seconds.
+            Discover how our AI-powered email assistant categorizes your inbox,
+            generates brilliant drafts, and answers questions about your email
+            history in seconds.
           </p>
         </div>
 
         {/* Video Container Placeholder */}
         <div className="relative mx-auto max-w-4xl rounded-2xl overflow-hidden border border-border/50 bg-card/30 shadow-2xl aspect-video group flex items-center justify-center">
-          <video 
-            src="/demo_automail.mkv" 
-            controls 
-            autoPlay 
-            className="w-full h-full object-cover" 
+          <video
+            src="/demo_video.mp4"
+            controls
+            autoPlay
+            className="w-full h-full object-cover"
           />
         </div>
 
@@ -49,7 +53,8 @@ export default function DemoPage() {
             </div>
             <h3 className="font-bold text-lg">Smart Categories</h3>
             <p className="text-sm text-muted-foreground leading-relaxed">
-              Auto Mail analyzes incoming emails and automatically routes them to designated folders like Bills, Newsletters, or Personal.
+              Auto Mail analyzes incoming emails and automatically routes them
+              to designated folders like Bills, Newsletters, or Personal.
             </p>
           </div>
 
@@ -59,7 +64,8 @@ export default function DemoPage() {
             </div>
             <h3 className="font-bold text-lg">Instant AI Drafts</h3>
             <p className="text-sm text-muted-foreground leading-relaxed">
-              Provide a brief 5-word instruction and the AI instantly generates a fully formatted, professional email reply.
+              Provide a brief 5-word instruction and the AI instantly generates
+              a fully formatted, professional email reply.
             </p>
           </div>
 
@@ -69,11 +75,11 @@ export default function DemoPage() {
             </div>
             <h3 className="font-bold text-lg">Semantic Search Chat</h3>
             <p className="text-sm text-muted-foreground leading-relaxed">
-              Chat naturally with your entire inbox. "What did Sarah say about the marketing budget last week?"
+              Chat naturally with your entire inbox. "What did Sarah say about
+              the marketing budget last week?"
             </p>
           </div>
         </div>
-
       </div>
     </div>
   );
