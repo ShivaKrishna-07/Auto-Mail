@@ -8,8 +8,6 @@ import { api } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { 
-  Send, 
 import { Loader2, Plus, MessageSquare, ExternalLink, Bot, Check, Search, Sparkles, Send, RefreshCw, FileText, ArrowRight, Mail, User, Calendar } from 'lucide-react';
 import { useAIErrorHandler } from '@/hooks/useAIErrorHandler';
 import { motion, AnimatePresence } from 'framer-motion';

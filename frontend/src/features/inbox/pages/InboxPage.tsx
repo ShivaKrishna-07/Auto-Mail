@@ -184,7 +184,7 @@ export function InboxPage() {
           {loadingThreads ? (
             <div className="p-8 text-center text-[13px] text-muted-foreground flex flex-col items-center gap-3">
               <RefreshCw className="w-4 h-4 animate-spin text-muted-foreground" />
-              <span>Loading threads...</span>
+              <span>Loading mails...</span>
             </div>
           ) : threads.length === 0 ? (
             <div className="p-8 text-center text-[13px] text-muted-foreground flex flex-col items-center gap-3">
@@ -288,7 +288,12 @@ export function InboxPage() {
                       // Navigate to compose prefilled
                       // Find the first email not sent by the user (checking labelIds for 'SENT')
                       const receivedEmail = details.emails.slice().reverse().find((e: any) => !e.labelIds?.includes('SENT'));
-                      const replyToAddress = receivedEmail ? receivedEmail.sender : (details.emails[0]?.receiver || '');
+                      const rawSender = receivedEmail ? receivedEmail.sender : (details.emails[0]?.receiver || '');
+                      const extractEmail = (str: string) => {
+                        const match = str.match(/<([^>]+)>/);
+                        return match ? match[1] : str.trim();
+                      };
+                      const replyToAddress = extractEmail(rawSender);
                       const subjectText = details.thread.subject.toLowerCase().startsWith('re:') ? details.thread.subject : 'Re: ' + details.thread.subject;
                       router.push(`/dashboard/compose?threadId=${details.thread.id}&to=${encodeURIComponent(replyToAddress)}&subject=${encodeURIComponent(subjectText)}`);
                     }}
@@ -339,23 +344,27 @@ export function InboxPage() {
             {/* 3. Conversation Thread */}
             <div className="space-y-4 relative">
               {/* Vertical connecting line */}
-              <div className="absolute left-[23px] top-10 bottom-10 w-0.5 bg-border/50 z-0 hidden sm:block"></div>
+              {details.emails.length > 1 && (
+                <div className="absolute left-[23px] top-10 bottom-10 w-0.5 bg-border/50 z-0 hidden sm:block"></div>
+              )}
               
               {details.emails.map((email: Email, idx: number) => (
                 <div key={email.id} className="relative z-10 flex gap-4">
                   
                   {/* Timeline Avatar */}
-                  <div className="hidden sm:flex flex-col items-center pt-3">
-                    <div className="w-10 h-10 rounded-full bg-background border-2 border-border flex items-center justify-center shrink-0 font-bold text-[14px] text-foreground z-10 shadow-sm">
-                      {email.sender.charAt(0).toUpperCase()}
+                  {details.emails.length > 1 && (
+                    <div className="hidden sm:flex flex-col items-center pt-3">
+                      <div className="w-10 h-10 rounded-full bg-background border-2 border-border flex items-center justify-center shrink-0 font-bold text-[14px] text-foreground z-10 shadow-sm">
+                        {email.sender.charAt(0).toUpperCase()}
+                      </div>
                     </div>
-                  </div>
+                  )}
                   
                   {/* Message Card */}
                   <Card className="flex-1 shadow-sm overflow-hidden bg-card border-border/40 hover:border-border/80 transition-colors">
                     <div className="px-5 py-3 border-b border-border/30 flex items-center justify-between bg-secondary/10">
                       <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-full bg-secondary border border-border flex sm:hidden items-center justify-center shrink-0 font-bold text-[12px] text-muted-foreground">
+                        <div className={`w-8 h-8 rounded-full bg-secondary border border-border flex items-center justify-center shrink-0 font-bold text-[12px] text-muted-foreground ${details.emails.length > 1 ? 'sm:hidden' : ''}`}>
                           {email.sender.charAt(0).toUpperCase()}
                         </div>
                         <div className="flex flex-col">

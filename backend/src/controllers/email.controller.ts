@@ -2,7 +2,7 @@ import { Response } from 'express';
 import { AuthenticatedRequest } from '../middleware/auth.middleware';
 import { db } from '../db/connection';
 import { threads as threadsTable, emails as emailsTable } from '../db/schema';
-import { eq, and, desc, inArray, sql } from 'drizzle-orm';
+import { eq, and, desc, inArray, sql, isNull } from 'drizzle-orm';
 import { aiService } from '../services/ai.service';
 import { gmailService } from '../services/gmail.service';
 
@@ -34,11 +34,19 @@ class EmailController {
 
         const totalRes = await db.select({ count: sql<number>`count(*)` })
           .from(threadsTable)
-          .where(and(eq(threadsTable.userId, userId), inArray(threadsTable.id, threadIds)));
+          .where(and(
+            eq(threadsTable.userId, userId),
+            inArray(threadsTable.id, threadIds),
+            sql`exists (select 1 from emails where emails.thread_id = threads.id and emails.label_ids::text like '%INBOX%')`
+          ));
         total = Number(totalRes[0].count);
 
         threadsList = await db.query.threads.findMany({
-          where: and(eq(threadsTable.userId, userId), inArray(threadsTable.id, threadIds)),
+          where: and(
+            eq(threadsTable.userId, userId),
+            inArray(threadsTable.id, threadIds),
+            sql`exists (select 1 from emails where emails.thread_id = threads.id and emails.label_ids::text like '%INBOX%')`
+          ),
           orderBy: [desc(threadsTable.lastMessageDate)],
           limit,
           offset,
@@ -46,11 +54,17 @@ class EmailController {
       } else {
         const totalRes = await db.select({ count: sql<number>`count(*)` })
           .from(threadsTable)
-          .where(eq(threadsTable.userId, userId));
+          .where(and(
+            eq(threadsTable.userId, userId),
+            sql`exists (select 1 from emails where emails.thread_id = threads.id and emails.label_ids::text like '%INBOX%')`
+          ));
         total = Number(totalRes[0].count);
 
         threadsList = await db.query.threads.findMany({
-          where: eq(threadsTable.userId, userId),
+          where: and(
+            eq(threadsTable.userId, userId),
+            sql`exists (select 1 from emails where emails.thread_id = threads.id and emails.label_ids::text like '%INBOX%')`
+          ),
           orderBy: [desc(threadsTable.lastMessageDate)],
           limit,
           offset,
@@ -246,6 +260,61 @@ class EmailController {
     } catch (error: any) {
       console.error('Error categorizing thread:', error);
       return res.status(500).json({ error: error.message || 'Failed to categorize thread.' });
+    }
+  }
+
+  async getUncategorizedCount(req: AuthenticatedRequest, res: Response) {
+    try {
+      const userId = req.user?.userId;
+      if (!userId) return res.status(401).json({ error: 'Unauthorized.' });
+
+      const result = await db.select({ count: sql<number>`count(*)` })
+        .from(emailsTable)
+        .where(and(eq(emailsTable.userId, userId), isNull(emailsTable.category)));
+      
+      return res.json({ count: Number(result[0].count) });
+    } catch (error: any) {
+      console.error('Get uncategorized count error:', error);
+      return res.status(500).json({ error: 'Failed to get count' });
+    }
+  }
+
+  async categorizeAll(req: AuthenticatedRequest, res: Response) {
+    try {
+      const userId = req.user?.userId;
+      if (!userId) return res.status(401).json({ error: 'Unauthorized.' });
+      
+      // Find all emails for this user where category is null
+      const uncategorized = await db.query.emails.findMany({
+        where: and(eq(emailsTable.userId, userId), isNull(emailsTable.category)),
+        limit: 50 
+      });
+
+      if (uncategorized.length === 0) {
+        return res.json({ categorizedCount: 0 });
+      }
+
+      let count = 0;
+      for (const email of uncategorized) {
+        try {
+          const category = await aiService.categorizeEmail(email.subject || '', email.body || '');
+          await db.update(emailsTable)
+            .set({ category, isNewsletter: category === 'Newsletter' })
+            .where(eq(emailsTable.id, email.id));
+          count++;
+        } catch (err: any) {
+          if (err.message?.includes('quota') || err.message?.includes('rate limit')) {
+            console.warn('Hit AI quota while categorizing batch. Stopping early.');
+            break;
+          }
+          console.error(`Failed to categorize email ${email.id}:`, err);
+        }
+      }
+
+      return res.json({ categorizedCount: count });
+    } catch (error: any) {
+      console.error('Categorize all error:', error);
+      return res.status(500).json({ error: 'Failed to categorize all emails' });
     }
   }
 }
