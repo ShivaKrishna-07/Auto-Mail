@@ -6,7 +6,8 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useAuth } from '../hooks/useAuth';
 import { useTheme } from '@/hooks/useTheme';
-import { Mail, Sparkles, Shield, RefreshCw, Sun, Moon } from 'lucide-react';
+import { Mail, Sparkles, Shield, RefreshCw, Sun, Moon, PlayCircle } from 'lucide-react';
+import Link from 'next/link';
 
 export function LoginPage() {
   const [loading, setLoading] = useState(false);
@@ -127,6 +128,15 @@ export function LoginPage() {
                 {error}
               </div>
             )}
+
+            <div className="flex justify-center mt-2 mb-2">
+              <Link href="/demo">
+                <Button variant="ghost" className="text-muted-foreground hover:text-primary text-[12px] h-8 px-3 gap-2 rounded-full border border-transparent hover:border-border/50">
+                  <PlayCircle className="w-3.5 h-3.5" />
+                  Watch Demo Video
+                </Button>
+              </Link>
+            </div>
 
             <div className="border-t border-border pt-5 grid grid-cols-3 gap-4 text-center text-[10px] text-muted-foreground">
               <div className="flex flex-col items-center gap-1.5">

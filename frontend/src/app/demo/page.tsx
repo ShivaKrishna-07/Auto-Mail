@@ -33,24 +33,13 @@ export default function DemoPage() {
 
         {/* Video Container Placeholder */}
         <div className="relative mx-auto max-w-4xl rounded-2xl overflow-hidden border border-border/50 bg-card/30 shadow-2xl aspect-video group flex items-center justify-center">
-          
-          {/* 
-            TODO: Add actual video element here. 
-            Example:
-            <video src="/path/to/demo.mp4" controls className="w-full h-full object-cover" />
-            or
-            <iframe src="https://www.youtube.com/embed/..." className="w-full h-full" allowFullScreen />
-          */}
-          
-          <div className="absolute inset-0 bg-muted/20 backdrop-blur-[2px] transition-all group-hover:bg-muted/10" />
-          
-          <div className="relative z-10 flex flex-col items-center gap-4 text-muted-foreground">
-            <PlayCircle className="w-20 h-20 text-primary opacity-80" />
-            <p className="text-sm font-semibold tracking-wide">Video Placeholder</p>
-            <p className="text-xs max-w-xs text-center opacity-80">
-              The demo video will be uploaded here soon.
-            </p>
-          </div>
+          <video 
+            src="/screen-capture.webm" 
+            controls 
+            autoPlay 
+            muted 
+            className="w-full h-full object-cover" 
+          />
         </div>
 
         {/* Features Preview */}

@@ -18,7 +18,8 @@ import {
   ChevronDown,
   ChevronRight,
   UserCircle,
-  Folder
+  Folder,
+  PlayCircle
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -131,6 +132,7 @@ export function Sidebar() {
             { id: 'inbox', label: 'Inbox', icon: Inbox, path: '/dashboard', active: pathname === '/dashboard' && !activeCategory },
             { id: 'chat', label: 'AI Search', icon: MessageSquare, path: '/dashboard/chat', active: pathname === '/dashboard/chat' },
             { id: 'compose', label: 'Compose', icon: PenTool, path: '/dashboard/compose', active: pathname === '/dashboard/compose' },
+            { id: 'demo', label: 'Watch Demo', icon: PlayCircle, path: '/demo', active: pathname === '/demo' },
           ].map((item) => (
             <Button 
               key={item.id}

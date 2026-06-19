@@ -11,6 +11,8 @@ import { Input } from '@/components/ui/input';
 import { Loader2, Plus, MessageSquare, ExternalLink, Bot, Check, Search, Sparkles, Send, RefreshCw, FileText, ArrowRight, Mail, User, Calendar } from 'lucide-react';
 import { useAIErrorHandler } from '@/hooks/useAIErrorHandler';
 import { motion, AnimatePresence } from 'framer-motion';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
 interface ChatMessage {
   id: string;
@@ -109,47 +111,39 @@ export function ChatPage() {
   };
 
   const renderMessageContent = (content: string, sources: any[] | null) => {
-    if (!sources || sources.length === 0) return <p className="whitespace-pre-wrap">{content}</p>;
+    // Convert [hash] to standard markdown links [hash](#hash) so react-markdown can parse them
+    const contentWithLinks = content.replace(/\[([a-f0-9]{16})\]/g, '[$1](#$1)');
 
-    const regex = /\[([a-f0-9]{16})\]/g;
-    const parts = [];
-    let lastIndex = 0;
-    let match;
-
-    while ((match = regex.exec(content)) !== null) {
-      const matchIndex = match.index;
-      const emailId = match[1];
-
-      if (matchIndex > lastIndex) {
-        parts.push(content.substring(lastIndex, matchIndex));
-      }
-
-      const sourceObj = sources.find(s => s.id === emailId);
-
-      if (sourceObj) {
-        parts.push(
-          <button
-            key={emailId + '-' + matchIndex}
-            onClick={() => handlePreviewSource(emailId)}
-            className="mx-1 inline-flex items-center gap-1 px-2 py-0.5 rounded-[6px] bg-secondary hover:bg-muted text-[11px] font-bold text-foreground transition-colors cursor-pointer align-baseline"
-            title={`Source: ${sourceObj.subject}`}
-          >
-            <Mail className="w-3 h-3" />
-            <span>Ref</span>
-          </button>
-        );
-      } else {
-        parts.push(match[0]);
-      }
-
-      lastIndex = regex.lastIndex;
-    }
-
-    if (lastIndex < content.length) {
-      parts.push(content.substring(lastIndex));
-    }
-
-    return <div className="whitespace-pre-wrap">{parts}</div>;
+    return (
+      <ReactMarkdown
+        remarkPlugins={[remarkGfm]}
+        className="prose dark:prose-invert prose-sm max-w-none prose-p:leading-relaxed prose-pre:bg-muted prose-pre:text-muted-foreground"
+        components={{
+          a: ({ node, href, children, ...props }) => {
+            if (href && href.startsWith('#')) {
+              const emailId = href.substring(1);
+              const sourceObj = sources?.find(s => s.id === emailId);
+              if (sourceObj || sources) {
+                return (
+                  <button
+                    onClick={() => handlePreviewSource(emailId)}
+                    className="mx-1 inline-flex items-center gap-1 px-2 py-0.5 rounded-[6px] bg-secondary hover:bg-muted text-[11px] font-bold text-foreground transition-colors cursor-pointer align-baseline no-underline"
+                    title={`Source: ${sourceObj?.subject || emailId}`}
+                  >
+                    <Mail className="w-3 h-3" />
+                    <span>Ref</span>
+                  </button>
+                );
+              }
+              return <span>[{emailId}]</span>;
+            }
+            return <a href={href} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline" {...props}>{children}</a>;
+          }
+        }}
+      >
+        {contentWithLinks}
+      </ReactMarkdown>
+    );
   };
 
   return (
