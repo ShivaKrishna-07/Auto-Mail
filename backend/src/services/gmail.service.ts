@@ -6,6 +6,7 @@ import { authService } from './auth.service';
 import { aiService } from './ai.service';
 import { embeddingsService } from './embeddings.service';
 import { cleanHtml, getHeader } from '../utils/parser';
+import { withGmailRetry } from '../utils/gmail.util';
 
 export interface SyncProgressData {
   total: number;
@@ -70,11 +71,11 @@ class GmailService {
       if (startHistoryId) {
         // Attempt Incremental Sync
         try {
-          const historyResponse = await gmail.users.history.list({
+          const historyResponse = await withGmailRetry(() => gmail.users.history.list({
             userId: 'me',
             startHistoryId: startHistoryId,
             maxResults: 100,
-          });
+          }));
 
           const historyRecords = historyResponse.data.history || [];
           const messageIdsToFetch = new Set<string>();
@@ -99,7 +100,7 @@ class GmailService {
           }
 
           // Update current historyId
-          const profile = await gmail.users.getProfile({ userId: 'me' });
+          const profile = await withGmailRetry(() => gmail.users.getProfile({ userId: 'me' }));
           await db.update(gmailAccountsTable)
             .set({
               historyId: profile.data.historyId || account.historyId,
@@ -132,12 +133,12 @@ class GmailService {
 
       // Fetch message list matching query
       do {
-        const listResponse: any = await gmail.users.messages.list({
+        const listResponse: any = await withGmailRetry(() => gmail.users.messages.list({
           userId: 'me',
           q: query,
           maxResults: Math.min(maxSyncLimit - allMessageIds.length, 50),
           pageToken,
-        });
+        }));
 
         const messages = listResponse.data.messages || [];
         allMessageIds.push(...messages.map((m: gmail_v1.Schema$Message) => m.id).filter((id: string | null | undefined): id is string => !!id));
@@ -154,7 +155,7 @@ class GmailService {
       }
 
       // Save latest historyId from Gmail Profile
-      const profile = await gmail.users.getProfile({ userId: 'me' });
+      const profile = await withGmailRetry(() => gmail.users.getProfile({ userId: 'me' }));
       await db.update(gmailAccountsTable)
         .set({
           historyId: profile.data.historyId || null,
@@ -194,11 +195,11 @@ class GmailService {
         if (existingEmail) continue;
 
         // Fetch full message details
-        const res = await gmail.users.messages.get({
+        const res = await withGmailRetry(() => gmail.users.messages.get({
           userId: 'me',
           id: messageId,
           format: 'full',
-        });
+        }));
 
         const msg = res.data;
         if (!msg.id || !msg.threadId) continue;
