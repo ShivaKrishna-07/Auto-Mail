@@ -99,12 +99,7 @@ export function InboxPage() {
     }
   }, [categoryFilter, uncategorizedCount]);
 
-  useEffect(() => {
-    if (threads.length > 0 && !selectedThreadId && pathname === '/dashboard') {
-      const q = searchParams.toString();
-      router.replace(`/dashboard/${threads[0].id}${q ? `?${q}` : ''}`);
-    }
-  }, [threads, selectedThreadId, pathname, router, searchParams]);
+
 
   useEffect(() => {
     const handleSyncEvent = () => {

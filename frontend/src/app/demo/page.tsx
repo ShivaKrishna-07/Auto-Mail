@@ -40,7 +40,7 @@ export default function DemoPage() {
           <video
             src="/demo_video.mp4"
             controls
-            autoPlay
+            preload="none"
             className="w-full h-full object-cover"
           />
         </div>

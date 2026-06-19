@@ -218,9 +218,9 @@ export function ChatPage() {
               
               <div className="w-full grid gap-3 pt-4">
                 {[
-                  "What did my manager say about the deadline?",
-                  "Find all flight booking receipts and summaries.",
-                  "Summarize latest updates from professional category.",
+                  "Find all emails related to internship or job applications.",
+                  "What did the professor say about the upcoming assignment deadline?",
+                  "Summarize all latest updates regarding college placements.",
                 ].map((q, idx) => (
                   <button
                     key={idx}
