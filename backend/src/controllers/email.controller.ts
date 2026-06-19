@@ -180,6 +180,74 @@ class EmailController {
       return res.status(500).json({ error: error.message || 'Failed to send reply.' });
     }
   }
+
+  async summarizeThread(req: AuthenticatedRequest, res: Response) {
+    const userId = req.user?.userId;
+    if (!userId) return res.status(401).json({ error: 'Unauthorized.' });
+
+    const { threadId } = req.params;
+
+    try {
+      const threadEmails = await db.query.emails.findMany({
+        where: and(eq(emailsTable.threadId, threadId), eq(emailsTable.userId, userId)),
+        orderBy: [emailsTable.internalDate],
+      });
+
+      if (threadEmails.length === 0) {
+        return res.status(404).json({ error: 'Thread not found.' });
+      }
+
+      const formattedEmails = threadEmails.map(e => ({
+        sender: e.sender,
+        internalDate: e.internalDate,
+        body: e.body || '',
+      }));
+
+      const summary = await aiService.summarizeThread(formattedEmails);
+
+      await db.update(threadsTable).set({
+        summary,
+        updatedAt: new Date(),
+      }).where(eq(threadsTable.id, threadId));
+
+      return res.json({ summary });
+    } catch (error: any) {
+      console.error('Error summarizing thread:', error);
+      return res.status(500).json({ error: error.message || 'Failed to summarize thread.' });
+    }
+  }
+
+  async categorizeThread(req: AuthenticatedRequest, res: Response) {
+    const userId = req.user?.userId;
+    if (!userId) return res.status(401).json({ error: 'Unauthorized.' });
+
+    const { threadId } = req.params;
+
+    try {
+      const threadEmails = await db.query.emails.findMany({
+        where: and(eq(emailsTable.threadId, threadId), eq(emailsTable.userId, userId)),
+        orderBy: [desc(emailsTable.internalDate)],
+      });
+
+      if (threadEmails.length === 0) {
+        return res.status(404).json({ error: 'Thread not found.' });
+      }
+
+      // We categorize based on the latest email in the thread
+      const latestEmail = threadEmails[0];
+      const category = await aiService.categorizeEmail(latestEmail.subject || '', latestEmail.body || '');
+
+      await db.update(emailsTable).set({
+        category,
+        isNewsletter: category === 'Newsletter',
+      }).where(eq(emailsTable.threadId, threadId));
+
+      return res.json({ category });
+    } catch (error: any) {
+      console.error('Error categorizing thread:', error);
+      return res.status(500).json({ error: error.message || 'Failed to categorize thread.' });
+    }
+  }
 }
 
 export const emailController = new EmailController();

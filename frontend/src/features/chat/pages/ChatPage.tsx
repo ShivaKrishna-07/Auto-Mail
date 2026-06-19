@@ -10,17 +10,8 @@ import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { 
   Send, 
-  Sparkles, 
-  RefreshCw, 
-  FileText, 
-  Plus, 
-  MessageSquare,
-  ArrowRight,
-  Mail,
-  User,
-  Calendar,
-  ExternalLink
-} from 'lucide-react';
+import { Loader2, Plus, MessageSquare, ExternalLink, Bot, Check, Search, Sparkles, Send, RefreshCw, FileText, ArrowRight, Mail, User, Calendar } from 'lucide-react';
+import { useAIErrorHandler } from '@/hooks/useAIErrorHandler';
 import { motion, AnimatePresence } from 'framer-motion';
 
 interface ChatMessage {
@@ -67,6 +58,7 @@ export function ChatPage() {
   const { data: messages = [], isLoading: loadingMessages } = useChatHistory(currentSessionId);
 
   const askMutation = useAskQuestionMutation();
+  const { handleAIError } = useAIErrorHandler();
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -94,6 +86,7 @@ export function ChatPage() {
         },
         onError: (err) => {
           console.error('Failed to ask question:', err);
+          handleAIError(err, 'Failed to send message.');
         }
       }
     );

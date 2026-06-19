@@ -5,7 +5,8 @@ import { useSearchParams, useRouter, usePathname, useParams } from 'next/navigat
 import { useQueryClient } from '@tanstack/react-query';
 import { useThreads } from '../hooks/useThreads';
 import { useThreadDetails } from '../hooks/useThreadDetails';
-import { useSendReplyMutation, useDraftReplyMutation } from '../hooks/useInboxMutations';
+import { useSendReplyMutation, useDraftReplyMutation, useSummarizeThreadMutation, useCategorizeThreadMutation } from '../hooks/useInboxMutations';
+import { useAIErrorHandler } from '@/hooks/useAIErrorHandler';
 import { getCategoryColor } from '@/utils/category';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -63,7 +64,7 @@ export function InboxPage() {
   const [prompt, setPrompt] = useState('');
   const [draft, setDraft] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
-  const limit = 50;
+  const limit = 10;
 
   const { 
     data: threadsResponse, 
@@ -80,6 +81,9 @@ export function InboxPage() {
 
   const sendReplyMutation = useSendReplyMutation();
   const draftReplyMutation = useDraftReplyMutation();
+  const summarizeMutation = useSummarizeThreadMutation();
+  const categorizeMutation = useCategorizeThreadMutation();
+  const { handleAIError } = useAIErrorHandler();
 
   useEffect(() => {
     document.title = categoryFilter ? `${categoryFilter} - Auto Mail` : 'Inbox - Auto Mail';
@@ -118,6 +122,7 @@ export function InboxPage() {
         },
         onError: (err) => {
           console.error('Failed to generate draft reply:', err);
+          handleAIError(err, 'Failed to generate draft reply.');
         }
       }
     );
@@ -149,10 +154,28 @@ export function InboxPage() {
             {categoryFilter ? `${categoryFilter}` : 'Inbox'}
           </h2>
           
-          <div className="flex items-center gap-2">
-            <span className="text-[11px] text-muted-foreground font-medium">
-              {totalThreads > 0 ? `${totalThreads} conversations` : ''}
+          <div className="flex items-center gap-1">
+            <span className="text-[11px] text-muted-foreground font-medium mr-2">
+              {totalThreads > 0 ? `${(currentPage - 1) * limit + 1}-${Math.min(currentPage * limit, totalThreads)} of ${totalThreads}` : ''}
             </span>
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              className="h-6 w-6 text-muted-foreground hover:text-foreground" 
+              onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+              disabled={currentPage === 1}
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              className="h-6 w-6 text-muted-foreground hover:text-foreground" 
+              onClick={() => setCurrentPage(p => p + 1)}
+              disabled={currentPage * limit >= totalThreads}
+            >
+              <ChevronRight className="h-4 w-4" />
+            </Button>
           </div>
         </div>
 
@@ -236,7 +259,23 @@ export function InboxPage() {
                   {details.thread.subject ? details.thread.subject.charAt(0).toUpperCase() + details.thread.subject.slice(1) : 'No Subject'}
                 </h1>
                 <div className="flex items-center gap-3 shrink-0">
-                  {details.emails[0]?.category && (
+                  {(!details.emails[0]?.category || details.emails[0]?.category === 'Uncategorized') ? (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-8 text-[11px] px-2 shadow-none gap-1.5 border-dashed"
+                      onClick={() => categorizeMutation.mutate(details.thread.id, {
+                        onError: (err) => handleAIError(err, 'Failed to categorize thread')
+                      })}
+                      disabled={categorizeMutation.isPending}
+                    >
+                      {categorizeMutation.isPending ? (
+                        <><RefreshCw className="w-3 h-3 animate-spin" /> Categorizing...</>
+                      ) : (
+                        <><Tag className="w-3 h-3" /> Categorize</>
+                      )}
+                    </Button>
+                  ) : (
                     <Badge className={getCategoryColor(details.emails[0]?.category) + " shrink-0 shadow-none px-2 h-6 text-[11px]"}>
                       {details.emails[0]?.category}
                     </Badge>
@@ -247,11 +286,15 @@ export function InboxPage() {
                     className="h-8 text-[12px] font-semibold gap-2 shadow-sm" 
                     onClick={() => {
                       // Navigate to compose prefilled
-                      router.push(`/dashboard/compose?to=${encodeURIComponent(details.emails[0]?.sender)}&subject=${encodeURIComponent('Re: ' + details.thread.subject)}`);
+                      // Find the first email not sent by the user (checking labelIds for 'SENT')
+                      const receivedEmail = details.emails.slice().reverse().find((e: any) => !e.labelIds?.includes('SENT'));
+                      const replyToAddress = receivedEmail ? receivedEmail.sender : (details.emails[0]?.receiver || '');
+                      const subjectText = details.thread.subject.toLowerCase().startsWith('re:') ? details.thread.subject : 'Re: ' + details.thread.subject;
+                      router.push(`/dashboard/compose?threadId=${details.thread.id}&to=${encodeURIComponent(replyToAddress)}&subject=${encodeURIComponent(subjectText)}`);
                     }}
                   >
                     <Reply className="w-3.5 h-3.5" />
-                    Reply
+                    Reply in this thread
                   </Button>
                 </div>
               </div>
@@ -259,7 +302,29 @@ export function InboxPage() {
             </div>
 
             {/* 2. AI Thread Summary Card */}
-            {details.thread.summary && !details.thread.summary.includes('Failed to generate') && (
+            {(!details.thread.summary || details.thread.summary.includes('Failed to generate') || details.thread.summary.trim() === '') ? (
+              <Card className="bg-secondary/10 border border-dashed border-border shadow-none overflow-hidden flex flex-col items-center justify-center p-8 gap-3">
+                <Sparkles className="w-6 h-6 text-muted-foreground/50" />
+                <p className="text-[13px] text-muted-foreground text-center max-w-sm">
+                  This thread hasn't been summarized yet. Generate an AI executive summary to quickly understand the context.
+                </p>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  className="mt-2 text-[12px] h-8 font-semibold gap-2 shadow-sm"
+                  onClick={() => summarizeMutation.mutate(details.thread.id, {
+                    onError: (err) => handleAIError(err, 'Failed to generate summary')
+                  })}
+                  disabled={summarizeMutation.isPending}
+                >
+                  {summarizeMutation.isPending ? (
+                    <><RefreshCw className="w-3.5 h-3.5 animate-spin" /> Analyzing thread...</>
+                  ) : (
+                    <><Sparkles className="w-3.5 h-3.5" /> Generate Summary</>
+                  )}
+                </Button>
+              </Card>
+            ) : (
               <Card className="bg-secondary/30 border border-border shadow-none overflow-hidden">
                 <div className="px-5 py-3 border-b border-border/50 flex items-center gap-2 bg-secondary/30">
                   <Sparkles className="w-4 h-4 text-muted-foreground" />

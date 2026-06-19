@@ -27,4 +27,12 @@ export const inboxService = {
       body,
     });
   },
+
+  async summarizeThread(threadId: string): Promise<{ summary: string }> {
+    return api.post(`/api/emails/threads/${threadId}/summarize`);
+  },
+
+  async categorizeThread(threadId: string): Promise<{ category: string }> {
+    return api.post(`/api/emails/threads/${threadId}/categorize`);
+  },
 };

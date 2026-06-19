@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { useDraftComposeMutation, useSendEmailMutation } from '../hooks/useCompose';
+import { useSendReplyMutation, useDraftReplyMutation } from '../../inbox/hooks/useInboxMutations';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -23,6 +24,7 @@ import {
   Redo
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useAIErrorHandler } from '@/hooks/useAIErrorHandler';
 
 // --- Simple Rich Text Editor Component ---
 const RichTextEditor = ({ value, onChange, disabled }: { value: string, onChange: (val: string) => void, disabled?: boolean }) => {
@@ -87,10 +89,14 @@ export function ComposePage() {
   const [to, setTo] = useState('');
   const [subject, setSubject] = useState('');
   const [body, setBody] = useState('');
+  const [threadId, setThreadId] = useState<string | null>(null);
   
   // React Query Mutations
   const draftComposeMutation = useDraftComposeMutation();
+  const draftReplyMutation = useDraftReplyMutation();
   const sendEmailMutation = useSendEmailMutation();
+  const sendReplyMutation = useSendReplyMutation();
+  const { handleAIError } = useAIErrorHandler();
 
   useEffect(() => {
     document.title = 'Compose - Auto Mail';
@@ -99,39 +105,48 @@ export function ComposePage() {
     const searchParams = new URLSearchParams(window.location.search);
     const toParam = searchParams.get('to');
     const subjectParam = searchParams.get('subject');
+    const threadIdParam = searchParams.get('threadId');
     if (toParam) setTo(decodeURIComponent(toParam));
     if (subjectParam) setSubject(decodeURIComponent(subjectParam));
+    if (threadIdParam) setThreadId(threadIdParam);
   }, []);
 
   const handleGenerateAIDraft = async () => {
     if (!aiPrompt.trim()) return;
     
-    draftComposeMutation.mutate(
-      { prompt: aiPrompt, context: '' },
-      {
-        onSuccess: (data) => {
-          const aiResult = data.draft;
-          let parsedSubject = '';
-          let parsedBody = aiResult;
+    const handleSuccess = (data: any) => {
+      const aiResult = data.draft;
+      let parsedSubject = '';
+      let parsedBody = aiResult;
 
-          const subjectMatch = aiResult.match(/^Subject:\s*(.*)/i);
-          if (subjectMatch) {
-            parsedSubject = subjectMatch[1];
-            parsedBody = aiResult.replace(/^Subject:\s*.*\n*/i, '').trim();
-          }
-
-          if (parsedSubject) setSubject(parsedSubject);
-          
-          // Replace plain text linebreaks with HTML linebreaks for the Rich Text Editor
-          const htmlBody = parsedBody.replace(/\n/g, '<br/>');
-          setBody(htmlBody);
-        },
-        onError: (err) => {
-          console.error('Failed to generate draft compose:', err);
-          toast.error("Failed to generate AI draft.");
-        }
+      const subjectMatch = aiResult.match(/^Subject:\s*(.*)/i);
+      if (subjectMatch) {
+        parsedSubject = subjectMatch[1];
+        parsedBody = aiResult.replace(/^Subject:\s*.*\n*/i, '').trim();
       }
-    );
+
+      if (parsedSubject && !threadId) setSubject(parsedSubject);
+      
+      const htmlBody = parsedBody.replace(/\n/g, '<br/>');
+      setBody(htmlBody);
+    };
+
+    const handleError = (err: any) => {
+      console.error('Failed to generate draft compose:', err);
+      handleAIError(err, "Failed to generate AI draft.");
+    };
+
+    if (threadId) {
+      draftReplyMutation.mutate(
+        { threadId, prompt: aiPrompt },
+        { onSuccess: handleSuccess, onError: handleError }
+      );
+    } else {
+      draftComposeMutation.mutate(
+        { prompt: aiPrompt, context: '' },
+        { onSuccess: handleSuccess, onError: handleError }
+      );
+    }
   };
 
   const handleSendEmail = async (e?: React.FormEvent) => {
@@ -158,22 +173,41 @@ export function ComposePage() {
       return;
     }
 
-    sendEmailMutation.mutate(
-      { to, subject, body },
-      {
-        onSuccess: () => {
-          toast.success("Message sent successfully!");
-          setTo('');
-          setSubject('');
-          setBody('');
-          setAiPrompt('');
-        },
-        onError: (err) => {
-          console.error('Failed to dispatch email:', err);
-          toast.error((err as any)?.message || 'Failed to send email.');
+    if (threadId) {
+      sendReplyMutation.mutate(
+        { threadId, body },
+        {
+          onSuccess: () => {
+            toast.success("Reply sent successfully!");
+            setTo('');
+            setSubject('');
+            setBody('');
+            setThreadId(null);
+            window.location.href = '/dashboard/inbox';
+          },
+          onError: (err: any) => {
+            console.error('Failed to dispatch reply:', err);
+            toast.error(err.message || 'Failed to send reply.');
+          }
         }
-      }
-    );
+      );
+    } else {
+      sendEmailMutation.mutate(
+        { to, subject, body },
+        {
+          onSuccess: () => {
+            toast.success("Email sent successfully!");
+            setTo('');
+            setSubject('');
+            setBody('');
+          },
+          onError: (err) => {
+            console.error('Failed to dispatch email:', err);
+            toast.error((err as any)?.message || 'Failed to send email.');
+          }
+        }
+      );
+    }
   };
 
   return (
@@ -211,10 +245,10 @@ export function ComposePage() {
 
             <Button
               onClick={handleGenerateAIDraft}
-              disabled={draftComposeMutation.isPending || !aiPrompt.trim()}
+              disabled={draftComposeMutation.isPending || draftReplyMutation.isPending || !aiPrompt.trim()}
               className="w-full h-11 text-[13px] font-semibold flex items-center justify-center gap-2 shadow-md transition-all rounded-[10px]"
             >
-              {draftComposeMutation.isPending ? (
+              {(draftComposeMutation.isPending || draftReplyMutation.isPending) ? (
                 <>
                   <RefreshCw className="w-4 h-4 animate-spin" /> Generating Draft...
                 </>
@@ -231,15 +265,17 @@ export function ComposePage() {
       {/* Pane 2: Email Editor */}
       <div className="flex-1 flex flex-col h-full overflow-hidden bg-background">
         <div className="h-16 border-b border-border flex items-center justify-between px-8 shrink-0 bg-background/95 backdrop-blur-sm z-10">
-          <h1 className="text-[16px] font-bold tracking-tight text-foreground">Compose Message</h1>
+          <h1 className="text-[16px] font-bold tracking-tight text-foreground">
+            {threadId ? "Reply in Thread" : "Compose Message"}
+          </h1>
           <Button
             type="button"
             onClick={() => handleSendEmail()}
-            disabled={sendEmailMutation.isPending}
+            disabled={sendEmailMutation.isPending || sendReplyMutation.isPending}
             className="px-6 h-9 bg-foreground text-background hover:bg-foreground/90 font-bold flex items-center gap-2 shadow-sm text-[13px] rounded-[8px]"
           >
-            {sendEmailMutation.isPending ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-            Send Message
+            {(sendEmailMutation.isPending || sendReplyMutation.isPending) ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+            {threadId ? "Send Reply" : "Send Message"}
           </Button>
         </div>
 
@@ -249,6 +285,12 @@ export function ComposePage() {
             <Card className="p-6 bg-card shadow-sm border border-border/60 rounded-[16px]">
               <div className="space-y-6">
                 
+                {threadId && (
+                  <div className="bg-primary/10 border border-primary/20 text-primary px-4 py-2.5 rounded-[8px] text-[13px] flex items-center gap-2 font-medium">
+                    <Sparkles className="w-4 h-4" /> Replying to an existing email thread
+                  </div>
+                )}
+
                 {/* To & Subject Fields */}
                 <div className="space-y-4 border-b border-border/50 pb-6">
                   <div className="flex items-center gap-4">
@@ -259,8 +301,8 @@ export function ComposePage() {
                       placeholder="recipient@example.com"
                       value={to}
                       onChange={(e) => setTo(e.target.value)}
-                      disabled={sendEmailMutation.isPending}
-                      className="h-10 text-[14px] bg-background border border-border shadow-inner focus-visible:ring-1 px-4 rounded-[8px] placeholder:text-muted-foreground/50 flex-1"
+                      disabled={sendEmailMutation.isPending || sendReplyMutation.isPending || !!threadId}
+                      className="h-10 text-[14px] bg-background border border-border shadow-inner focus-visible:ring-1 px-4 rounded-[8px] placeholder:text-muted-foreground/50 flex-1 disabled:opacity-60 disabled:cursor-not-allowed disabled:bg-muted/30"
                     />
                   </div>
 
@@ -272,8 +314,8 @@ export function ComposePage() {
                       placeholder="Email Subject"
                       value={subject}
                       onChange={(e) => setSubject(e.target.value)}
-                      disabled={sendEmailMutation.isPending}
-                      className="h-10 text-[14px] font-semibold bg-background border border-border shadow-inner focus-visible:ring-1 px-4 rounded-[8px] placeholder:text-muted-foreground/50 flex-1"
+                      disabled={sendEmailMutation.isPending || sendReplyMutation.isPending || !!threadId}
+                      className="h-10 text-[14px] font-semibold bg-background border border-border shadow-inner focus-visible:ring-1 px-4 rounded-[8px] placeholder:text-muted-foreground/50 flex-1 disabled:opacity-60 disabled:cursor-not-allowed disabled:bg-muted/30"
                     />
                   </div>
                 </div>
@@ -283,7 +325,7 @@ export function ComposePage() {
                   <RichTextEditor 
                     value={body}
                     onChange={setBody}
-                    disabled={sendEmailMutation.isPending}
+                    disabled={sendEmailMutation.isPending || sendReplyMutation.isPending}
                   />
                 </div>
               </div>

@@ -156,7 +156,7 @@ export function Sidebar() {
           >
             <div className="flex items-center gap-3">
               <Folder className="w-[18px] h-[18px]" />
-              Folders
+              Mail Categories
             </div>
             {categoriesOpen ? (
               <ChevronDown className="w-4 h-4" />

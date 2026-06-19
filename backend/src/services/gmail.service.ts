@@ -255,10 +255,17 @@ class GmailService {
           }
         }
 
-        // 2. AI Processing Pipeline (Summary, Category, Vector)
-        const summary = await aiService.summarizeEmail(plainBody);
-        const category = await aiService.categorizeEmail(subject, plainBody);
-        const embedding = await embeddingsService.generateEmbedding(plainBody);
+        // 2. AI Processing Pipeline (Skipped for Sync: Deferred to Frontend)
+        let summary = null;
+        let category = 'Uncategorized';
+        let embedding = null;
+
+        try {
+          // We still generate embedding because it's fast and needed for search
+          embedding = await embeddingsService.generateEmbedding(plainBody);
+        } catch (aiError: any) {
+          console.warn(`[Sync] Embedding skipped for msg ${msg.id}. Error:`, aiError.message);
+        }
 
         const isNewsletter = category === 'Newsletter';
 
@@ -308,12 +315,13 @@ class GmailService {
             body: e.body || '',
           }));
 
-          const threadSummary = await aiService.summarizeThread(formattedEmails);
-          const summaryEmbedding = await embeddingsService.generateEmbedding(threadSummary);
-
+          let threadSummary = null;
+          let summaryEmbedding = null;
+          
+          // Note: Thread summary generation is deferred to the frontend UI
+          // We keep the logic to update lastMessageDate and snippet, but leave summary null
+          
           await db.update(threadsTable).set({
-            summary: threadSummary,
-            summaryEmbedding,
             updatedAt: new Date(),
           }).where(eq(threadsTable.id, threadId));
         }

@@ -21,3 +21,25 @@ export function useDraftReplyMutation() {
       inboxService.generateAIDraft(threadId, prompt),
   });
 }
+
+export function useSummarizeThreadMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (threadId: string) => inboxService.summarizeThread(threadId),
+    onSuccess: (data, threadId) => {
+      queryClient.invalidateQueries({ queryKey: ['threadDetails', threadId] });
+      queryClient.invalidateQueries({ queryKey: ['threads'] });
+    },
+  });
+}
+
+export function useCategorizeThreadMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (threadId: string) => inboxService.categorizeThread(threadId),
+    onSuccess: (data, threadId) => {
+      queryClient.invalidateQueries({ queryKey: ['threadDetails', threadId] });
+      queryClient.invalidateQueries({ queryKey: ['threads'] });
+    },
+  });
+}
