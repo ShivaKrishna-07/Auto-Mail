@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useAuth } from '../hooks/useAuth';
 import { useTheme } from '@/hooks/useTheme';
 import { Mail, Sparkles, Shield, RefreshCw, Sun, Moon } from 'lucide-react';
@@ -10,6 +11,7 @@ import { Mail, Sparkles, Shield, RefreshCw, Sun, Moon } from 'lucide-react';
 export function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showConsentModal, setShowConsentModal] = useState(false);
   const { initiateLogin } = useAuth();
   const { theme, toggleTheme } = useTheme();
 
@@ -29,7 +31,12 @@ export function LoginPage() {
     }
   }, [theme]);
 
+  const handleLoginClick = () => {
+    setShowConsentModal(true);
+  };
+
   const handleLogin = async () => {
+    setShowConsentModal(false);
     setLoading(true);
     setError(null);
     try {
@@ -81,7 +88,7 @@ export function LoginPage() {
           </CardHeader>
           <CardContent className="space-y-6 pt-4">
             <Button
-              onClick={handleLogin}
+              onClick={handleLoginClick}
               disabled={loading}
               className="w-full py-6 text-sm font-semibold rounded-xl bg-foreground text-background hover:bg-foreground/90 transition-all flex items-center justify-center gap-3 shadow-lg shadow-foreground/5 cursor-pointer"
             >
@@ -148,6 +155,52 @@ export function LoginPage() {
           By signing in, you grant read-write access to read emails and draft responses inside a sandbox environment. Your credentials are encrypted.
         </p>
       </div>
+
+      <Dialog open={showConsentModal} onOpenChange={setShowConsentModal}>
+        <DialogContent className="sm:max-w-[425px] border-border bg-card">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-xl">
+              <Shield className="w-5 h-5 text-primary" />
+              Demo Notice
+            </DialogTitle>
+            <DialogDescription className="text-muted-foreground pt-2">
+              This app is currently awaiting Google's OAuth verification. Google will ask for Gmail permissions.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="py-2 space-y-4">
+            <div className="bg-destructive/10 p-4 rounded-xl border border-destructive/20 space-y-3">
+              <div className="flex items-start gap-3">
+                <div className="mt-0.5 p-1.5 bg-destructive/20 rounded-md">
+                  <Shield className="w-4 h-4 text-destructive" />
+                </div>
+                <div>
+                  <h4 className="text-sm font-semibold text-foreground">If you see an "App isn't verified" screen:</h4>
+                  <ol className="text-xs text-muted-foreground mt-2 space-y-1.5 list-decimal list-inside font-medium">
+                    <li>Click <strong className="text-foreground">"Advanced"</strong></li>
+                    <li>Click the <strong className="text-foreground">"Go to auto-mail-9wyd.onrender.com (unsafe)"</strong> option</li>
+                    <li>Continue with Google Sign-In</li>
+                  </ol>
+                </div>
+              </div>
+            </div>
+            
+            <div className="bg-muted/30 p-3 rounded-lg border border-border/50">
+              <p className="text-[11px] text-muted-foreground leading-relaxed text-center">
+                Your Google credentials remain secure and are never stored by Auto Mail. We do not use your personal Gmail data to train AI models, and you can revoke access anytime.
+              </p>
+            </div>
+          </div>
+          <DialogFooter className="sm:justify-between items-center bg-transparent border-t-0 p-0 -mx-0 -mb-0 pt-2">
+            <Button variant="ghost" onClick={() => setShowConsentModal(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleLogin} className="bg-primary text-primary-foreground hover:bg-primary/90">
+              Continue to Google
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
