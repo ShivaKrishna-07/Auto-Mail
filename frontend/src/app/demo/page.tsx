@@ -34,10 +34,9 @@ export default function DemoPage() {
         {/* Video Container Placeholder */}
         <div className="relative mx-auto max-w-4xl rounded-2xl overflow-hidden border border-border/50 bg-card/30 shadow-2xl aspect-video group flex items-center justify-center">
           <video 
-            src="/screen-capture.webm" 
+            src="/demo_automail.mkv" 
             controls 
             autoPlay 
-            muted 
             className="w-full h-full object-cover" 
           />
         </div>
