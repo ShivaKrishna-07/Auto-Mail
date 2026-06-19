@@ -115,10 +115,10 @@ export function ChatPage() {
     const contentWithLinks = content.replace(/\[([a-f0-9]{16})\]/g, '[$1](#$1)');
 
     return (
-      <ReactMarkdown
-        remarkPlugins={[remarkGfm]}
-        className="prose dark:prose-invert prose-sm max-w-none prose-p:leading-relaxed prose-pre:bg-muted prose-pre:text-muted-foreground"
-        components={{
+      <div className="prose dark:prose-invert prose-sm max-w-none prose-p:leading-relaxed prose-pre:bg-muted prose-pre:text-muted-foreground">
+        <ReactMarkdown
+          remarkPlugins={[remarkGfm]}
+          components={{
           a: ({ node, href, children, ...props }) => {
             if (href && href.startsWith('#')) {
               const emailId = href.substring(1);
@@ -143,6 +143,7 @@ export function ChatPage() {
       >
         {contentWithLinks}
       </ReactMarkdown>
+      </div>
     );
   };
 
