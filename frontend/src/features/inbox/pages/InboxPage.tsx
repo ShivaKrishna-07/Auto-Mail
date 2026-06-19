@@ -337,12 +337,25 @@ export function InboxPage() {
             )}
 
             {/* 3. Conversation Thread */}
-            <div className="space-y-6">
-                {details.emails.map((email: Email, idx: number) => (
-                  <Card key={email.id} className="shadow-sm overflow-hidden bg-card">
-                    <div className="px-5 py-4 border-b border-border/50 flex items-center justify-between bg-sidebar/30">
+            <div className="space-y-4 relative">
+              {/* Vertical connecting line */}
+              <div className="absolute left-[23px] top-10 bottom-10 w-0.5 bg-border/50 z-0 hidden sm:block"></div>
+              
+              {details.emails.map((email: Email, idx: number) => (
+                <div key={email.id} className="relative z-10 flex gap-4">
+                  
+                  {/* Timeline Avatar */}
+                  <div className="hidden sm:flex flex-col items-center pt-3">
+                    <div className="w-10 h-10 rounded-full bg-background border-2 border-border flex items-center justify-center shrink-0 font-bold text-[14px] text-foreground z-10 shadow-sm">
+                      {email.sender.charAt(0).toUpperCase()}
+                    </div>
+                  </div>
+                  
+                  {/* Message Card */}
+                  <Card className="flex-1 shadow-sm overflow-hidden bg-card border-border/40 hover:border-border/80 transition-colors">
+                    <div className="px-5 py-3 border-b border-border/30 flex items-center justify-between bg-secondary/10">
                       <div className="flex items-center gap-3">
-                        <div className="w-9 h-9 rounded-full bg-secondary border border-border flex items-center justify-center shrink-0 font-bold text-[13px] text-muted-foreground">
+                        <div className="w-8 h-8 rounded-full bg-secondary border border-border flex sm:hidden items-center justify-center shrink-0 font-bold text-[12px] text-muted-foreground">
                           {email.sender.charAt(0).toUpperCase()}
                         </div>
                         <div className="flex flex-col">
@@ -377,8 +390,9 @@ export function InboxPage() {
                       )}
                     </div>
                   </Card>
-                ))}
-              </div>
+                </div>
+              ))}
+            </div>
 
 
 
